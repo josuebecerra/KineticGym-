@@ -1,0 +1,354 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ProgressLog } from '../types';
+
+interface ProgressProps {
+  logs: ProgressLog[];
+  onAdd: (log: ProgressLog) => void;
+  onBack: () => void;
+}
+
+export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newLog, setNewLog] = useState({
+    weight: 0,
+    waist: 0,
+    chest: 0,
+    hips: 0,
+    photos: [] as string[]
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const sortedLogs = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const latestLog = logs[0];
+  const previousLog = logs[1];
+  
+  const weightDiff = latestLog && previousLog ? latestLog.weight - previousLog.weight : 0;
+
+  // Improved SVG Line Chart with Curves
+  const chartWidth = 400;
+  const chartHeight = 200;
+  const paddingX = 40;
+  const paddingY = 30;
+  
+  const minWeight = Math.min(...sortedLogs.map(l => l.weight)) - 1;
+  const maxWeight = Math.max(...sortedLogs.map(l => l.weight)) + 1;
+  const weightRange = maxWeight - minWeight;
+
+  const getCoords = (log: ProgressLog, i: number) => {
+    const x = paddingX + (i * (chartWidth - 2 * paddingX) / (sortedLogs.length - 1 || 1));
+    const y = chartHeight - paddingY - ((log.weight - minWeight) * (chartHeight - 2 * paddingY) / weightRange);
+    return { x, y };
+  };
+
+  const coords = sortedLogs.map((log, i) => getCoords(log, i));
+
+  // Bezier Curve Path calculation (simple)
+  const linePath = coords.length > 1 
+    ? coords.reduce((acc, point, i, a) => {
+        if (i === 0) return `M ${point.x},${point.y}`;
+        const prev = a[i - 1];
+        const cp1x = prev.x + (point.x - prev.x) / 2;
+        return `${acc} C ${cp1x},${prev.y} ${cp1x},${point.y} ${point.x},${point.y}`;
+      }, "")
+    : coords.length === 1 ? `M ${coords[0].x-10},${coords[0].y} L ${coords[0].x+10},${coords[0].y}` : "";
+
+  const areaPath = coords.length > 1 
+    ? `${linePath} L ${coords[coords.length - 1].x},${chartHeight} L ${coords[0].x},${chartHeight} Z`
+    : "";
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNewLog(prev => ({ ...prev, photos: [...prev.photos, reader.result as string] }));
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    if (newLog.weight <= 0) return;
+    
+    const log: ProgressLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: new Date().toISOString().split('T')[0],
+      weight: newLog.weight,
+      measurements: {
+        waist: newLog.waist,
+        chest: newLog.chest,
+        hips: newLog.hips
+      },
+      photos: newLog.photos
+    };
+    
+    onAdd(log);
+    setIsAdding(false);
+    setNewLog({ weight: 0, waist: 0, chest: 0, hips: 0, photos: [] });
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="px-6 pt-4 pb-24 space-y-8"
+    >
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="font-headline text-3xl font-black tracking-tight uppercase italic leading-none">PROGRESO</h1>
+            <p className="text-[10px] font-black text-secondary uppercase tracking-[0.2em] mt-1">Evolución Corporal</p>
+          </div>
+        </div>
+        <button 
+          onClick={() => setIsAdding(true)}
+          className="w-12 h-12 rounded-2xl kinetic-gradient flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-transform"
+        >
+          <span className="material-symbols-outlined text-on-primary-container font-black">add</span>
+        </button>
+      </header>
+
+      {/* Stats Summary */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/5 shadow-xl">
+          <p className="text-[10px] font-black text-outline uppercase tracking-[0.2em] mb-2">Peso Actual</p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-headline text-4xl font-black italic">{latestLog?.weight || '--'}</span>
+            <span className="text-xs font-bold text-on-surface-variant">KG</span>
+          </div>
+          <p className={`text-[10px] font-bold mt-2 ${weightDiff <= 0 ? 'text-secondary' : 'text-error'}`}>
+            {weightDiff > 0 ? '+' : ''}{weightDiff.toFixed(1)} kg vs anterior
+          </p>
+        </div>
+        <div className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/5 shadow-xl">
+          <p className="text-[10px] font-black text-outline uppercase tracking-[0.2em] mb-2">Cintura</p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-headline text-4xl font-black italic">{latestLog?.measurements.waist || '--'}</span>
+            <span className="text-xs font-bold text-on-surface-variant">CM</span>
+          </div>
+          <p className="text-[10px] font-bold text-outline mt-2 tracking-widest uppercase italic">Tendencia baja</p>
+        </div>
+      </div>
+
+      {/* Chart Section */}
+      <section className="bg-surface-container-high rounded-[40px] p-8 border border-outline-variant/5 shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+          <span className="material-symbols-outlined text-9xl">show_chart</span>
+        </div>
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-[10px] font-black tracking-[0.3em] uppercase">Evolución de Peso</h3>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-secondary" />
+              <span className="text-[8px] font-bold uppercase text-outline">Peso</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="h-[200px] w-full relative">
+          <svg width="100%" height="100%" viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" className="overflow-visible">
+            <defs>
+              <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#CCFF00" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#CCFF00" stopOpacity="0" />
+              </linearGradient>
+              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+
+            {/* Grid lines */}
+            {[0, 1, 2, 3].map(i => (
+              <line 
+                key={i}
+                x1={paddingX} 
+                y1={paddingY + i * (chartHeight - 2 * paddingY) / 3} 
+                x2={chartWidth - paddingX} 
+                y2={paddingY + i * (chartHeight - 2 * paddingY) / 3} 
+                stroke="currentColor" 
+                strokeOpacity="0.05" 
+                strokeDasharray="4 4"
+              />
+            ))}
+            
+            {/* Area */}
+            <path d={areaPath} fill="url(#chartGradient)" />
+            
+            {/* The Line */}
+            <path
+              d={linePath}
+              fill="none"
+              stroke="#CCFF00"
+              strokeWidth="4"
+              strokeLinecap="round"
+              filter="url(#glow)"
+              className="drop-shadow-[0_0_12px_rgba(204,255,0,0.3)]"
+            />
+
+            {/* Dots and Labels */}
+            {coords.map((point, i) => (
+              <g key={i} className="group/point">
+                <circle 
+                  cx={point.x} cy={point.y} r="6" 
+                  fill="#121212" 
+                  stroke="#CCFF00" 
+                  strokeWidth="3"
+                />
+                <text 
+                  x={point.x} y={point.y - 15} 
+                  textAnchor="middle" 
+                  className="fill-secondary text-[10px] font-black italic opacity-0 group-hover/point:opacity-100 transition-opacity"
+                >
+                  {sortedLogs[i].weight}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        <div className="flex justify-between mt-6 px-4">
+          {sortedLogs.map(log => (
+            <div key={log.id} className="flex flex-col items-center gap-1">
+              <span className="text-[8px] font-black text-outline uppercase tracking-widest">{new Date(log.date).toLocaleDateString('es-ES', { day: '2-digit' })}</span>
+              <span className="text-[8px] font-bold text-on-surface-variant uppercase">{new Date(log.date).toLocaleDateString('es-ES', { month: 'short' })}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Measurements Details */}
+      <section className="space-y-4">
+        <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Medidas Recientes</h3>
+        <div className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/10">
+          <div className="flex justify-between items-center py-3 border-b border-outline-variant/10">
+            <span className="text-xs font-bold uppercase tracking-widest text-outline italic">Pecho</span>
+            <span className="font-headline font-black text-lg">{latestLog?.measurements.chest} cm</span>
+          </div>
+          <div className="flex justify-between items-center py-3 border-b border-outline-variant/10">
+            <span className="text-xs font-bold uppercase tracking-widest text-outline italic">Cadera</span>
+            <span className="font-headline font-black text-lg">{latestLog?.measurements.hips} cm</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Photos Grid */}
+      <section className="space-y-4">
+        <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Gelería de Progreso</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {logs.flatMap(l => l.photos).map((photo, i) => (
+            <div key={i} className="aspect-square rounded-2xl overflow-hidden border border-outline-variant/10 shadow-lg group relative">
+              <img src={photo} alt={`Progreso ${i}`} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
+            </div>
+          ))}
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="aspect-square rounded-2xl bg-surface-container-high border-2 border-dashed border-outline-variant/20 flex flex-col items-center justify-center gap-2 text-outline hover:text-secondary hover:border-secondary/40 transition-all active:scale-95"
+          >
+            <span className="material-symbols-outlined">add_a_photo</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">Añadir</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Add Log Modal */}
+      <AnimatePresence>
+        {isAdding && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAdding(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              className="relative w-full max-w-lg bg-surface-container-high rounded-t-[40px] shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="w-12 h-1.5 bg-outline-variant/20 rounded-full mx-auto mb-8" />
+              <h2 className="font-headline text-3xl font-black tracking-tight mb-8">NUEVA ENTRADA</h2>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-outline ml-1">Peso (kg)</label>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    className="w-full bg-surface-container-low border-none rounded-2xl py-5 px-6 font-headline font-black text-2xl focus:ring-2 focus:ring-secondary transition-all"
+                    onChange={(e) => setNewLog({ ...newLog, weight: parseFloat(e.target.value) })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cintura</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, waist: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Pecho</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, chest: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cadera</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, hips: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-outline ml-1">Fotos de Hoy</label>
+                  <div className="flex gap-2 overflow-x-auto pb-2">
+                    {newLog.photos.map((photo, i) => (
+                      <img key={i} src={photo} className="w-20 h-20 object-cover rounded-xl" />
+                    ))}
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-20 h-20 rounded-xl bg-surface-container-low border-2 border-dashed border-outline-variant/20 flex items-center justify-center text-outline"
+                    >
+                      <span className="material-symbols-outlined">add_a_photo</span>
+                    </button>
+                    <input 
+                      ref={fileInputRef}
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      className="hidden" 
+                      onChange={handlePhotoUpload}
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleSubmit}
+                  className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-95 transition-transform text-lg mt-8"
+                >
+                  Guardar Progreso
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
