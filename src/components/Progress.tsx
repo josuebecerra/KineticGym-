@@ -1,21 +1,29 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProgressLog } from '../types';
+import { uploadProgressPhoto } from '../services/db';
+import { User } from 'firebase/auth';
 
 interface ProgressProps {
+  user: User;
   logs: ProgressLog[];
   onAdd: (log: ProgressLog) => void;
   onBack: () => void;
 }
 
-export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
+export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack }) => {
   const [isAdding, setIsAdding] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [newLog, setNewLog] = useState({
     weight: 0,
     waist: 0,
     chest: 0,
     hips: 0,
-    photos: [] as string[]
+    arms: 0,
+    legs: 0,
+    calves: 0,
+    bodyFat: 0,
+    photos: [] as { file: File, preview: string }[]
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,33 +69,51 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
     const files = e.target.files;
     if (files) {
       Array.from(files).forEach((file: File) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setNewLog(prev => ({ ...prev, photos: [...prev.photos, reader.result as string] }));
-        };
-        reader.readAsDataURL(file);
+        const preview = URL.createObjectURL(file);
+        setNewLog(prev => ({ 
+          ...prev, 
+          photos: [...prev.photos, { file, preview }] 
+        }));
       });
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (newLog.weight <= 0) return;
     
-    const log: ProgressLog = {
-      id: Math.random().toString(36).substr(2, 9),
-      date: new Date().toISOString().split('T')[0],
-      weight: newLog.weight,
-      measurements: {
-        waist: newLog.waist,
-        chest: newLog.chest,
-        hips: newLog.hips
-      },
-      photos: newLog.photos
-    };
-    
-    onAdd(log);
-    setIsAdding(false);
-    setNewLog({ weight: 0, waist: 0, chest: 0, hips: 0, photos: [] });
+    setIsUploading(true);
+    try {
+      const photoUrls: string[] = [];
+      for (const photo of newLog.photos) {
+        const url = await uploadProgressPhoto(user.uid, photo.file);
+        photoUrls.push(url);
+      }
+      
+      const log: ProgressLog = {
+        id: Math.random().toString(36).substr(2, 9),
+        date: new Date().toISOString().split('T')[0],
+        weight: newLog.weight,
+        measurements: {
+          waist: newLog.waist,
+          chest: newLog.chest,
+          hips: newLog.hips,
+          arms: newLog.arms || undefined,
+          legs: newLog.legs || undefined,
+          calves: newLog.calves || undefined,
+          bodyFat: newLog.bodyFat || undefined
+        },
+        photos: photoUrls
+      };
+      
+      onAdd(log);
+      setIsAdding(false);
+      setNewLog({ weight: 0, waist: 0, chest: 0, hips: 0, arms: 0, legs: 0, calves: 0, bodyFat: 0, photos: [] });
+    } catch (error) {
+      console.error("Error al subir fotos:", error);
+      alert("Hubo un error subiendo las fotos al servidor.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -226,14 +252,34 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
       {/* Measurements Details */}
       <section className="space-y-4">
         <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Medidas Recientes</h3>
-        <div className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/10">
-          <div className="flex justify-between items-center py-3 border-b border-outline-variant/10">
-            <span className="text-xs font-bold uppercase tracking-widest text-outline italic">Pecho</span>
-            <span className="font-headline font-black text-lg">{latestLog?.measurements.chest} cm</span>
+        <div className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/10 grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1 py-2 border-b border-outline-variant/10">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Pecho</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.chest || '--'} cm</span>
           </div>
-          <div className="flex justify-between items-center py-3 border-b border-outline-variant/10">
-            <span className="text-xs font-bold uppercase tracking-widest text-outline italic">Cadera</span>
-            <span className="font-headline font-black text-lg">{latestLog?.measurements.hips} cm</span>
+          <div className="flex flex-col gap-1 py-2 border-b border-outline-variant/10">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Cadera</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.hips || '--'} cm</span>
+          </div>
+          <div className="flex flex-col gap-1 py-2 border-b border-outline-variant/10">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Cintura</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.waist || '--'} cm</span>
+          </div>
+          <div className="flex flex-col gap-1 py-2 border-b border-outline-variant/10">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-secondary italic">% Grasa</span>
+            <span className="font-headline font-black text-xl text-secondary">{latestLog?.measurements.bodyFat || '--'} %</span>
+          </div>
+          <div className="flex flex-col gap-1 py-2">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Brazos</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.arms || '--'} cm</span>
+          </div>
+          <div className="flex flex-col gap-1 py-2">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Piernas</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.legs || '--'} cm</span>
+          </div>
+          <div className="flex flex-col gap-1 py-2 col-span-2 items-center text-center">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-outline italic">Pantorrillas</span>
+            <span className="font-headline font-black text-xl">{latestLog?.measurements.calves || '--'} cm</span>
           </div>
         </div>
       </section>
@@ -248,7 +294,7 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
             </div>
           ))}
           <button 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setIsAdding(true)}
             className="aspect-square rounded-2xl bg-surface-container-high border-2 border-dashed border-outline-variant/20 flex flex-col items-center justify-center gap-2 text-outline hover:text-secondary hover:border-secondary/40 transition-all active:scale-95"
           >
             <span className="material-symbols-outlined">add_a_photo</span>
@@ -288,17 +334,26 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cintura</label>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-secondary ml-1">% Grasa Corporal</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border border-secondary/20 rounded-xl py-3 px-4 text-center font-bold text-secondary focus:ring-1 focus:ring-secondary"
+                      onChange={(e) => setNewLog({ ...newLog, bodyFat: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cintura (cm)</label>
                     <input 
                       type="number" 
                       className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
                       onChange={(e) => setNewLog({ ...newLog, waist: parseFloat(e.target.value) })}
                     />
                   </div>
+                  
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Pecho</label>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Pecho (cm)</label>
                     <input 
                       type="number" 
                       className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
@@ -306,11 +361,37 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cadera</label>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Cadera (cm)</label>
                     <input 
                       type="number" 
                       className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
                       onChange={(e) => setNewLog({ ...newLog, hips: parseFloat(e.target.value) })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Brazos (cm)</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, arms: parseFloat(e.target.value) })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Piernas (cm)</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, legs: parseFloat(e.target.value) })}
+                    />
+                  </div>
+
+                  <div className="space-y-2 col-span-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-outline ml-1">Pantorrillas (cm)</label>
+                    <input 
+                      type="number" 
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 text-center font-bold"
+                      onChange={(e) => setNewLog({ ...newLog, calves: parseFloat(e.target.value) })}
                     />
                   </div>
                 </div>
@@ -319,7 +400,7 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-outline ml-1">Fotos de Hoy</label>
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {newLog.photos.map((photo, i) => (
-                      <img key={i} src={photo} className="w-20 h-20 object-cover rounded-xl" />
+                      <img key={i} src={photo.preview} className="w-20 h-20 object-cover rounded-xl" />
                     ))}
                     <button 
                       onClick={() => fileInputRef.current?.click()}
@@ -340,9 +421,10 @@ export const Progress: React.FC<ProgressProps> = ({ logs, onAdd, onBack }) => {
 
                 <button 
                   onClick={handleSubmit}
-                  className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-95 transition-transform text-lg mt-8"
+                  disabled={isUploading}
+                  className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-95 transition-transform text-lg mt-8 disabled:opacity-50 disabled:active:scale-100"
                 >
-                  Guardar Progreso
+                  {isUploading ? 'Subiendo Fotografía...' : 'Guardar Progreso'}
                 </button>
               </div>
             </motion.div>

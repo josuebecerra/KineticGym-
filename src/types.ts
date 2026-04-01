@@ -1,4 +1,18 @@
-export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso';
+export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso' | 'ajustes' | 'entrenador';
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  avatarUrl: string;
+  role: 'admin' | 'trainer' | 'trainee';
+  settings: {
+    soundEnabled: boolean;
+  };
+  history: WorkoutSession[];
+  progress: ProgressLog[];
+  assignedRoutines: Routine[];
+}
 
 export interface Routine {
   id: string;
@@ -54,6 +68,10 @@ export interface ProgressLog {
     waist: number;
     chest: number;
     hips: number;
+    arms?: number;
+    legs?: number;
+    calves?: number;
+    bodyFat?: number;
   };
   photos: string[]; // Base64 strings or URLs
 }

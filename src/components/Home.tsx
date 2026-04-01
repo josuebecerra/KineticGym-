@@ -7,11 +7,19 @@ interface HomeProps {
   sessions: WorkoutSession[];
   progress: ProgressLog[];
   exercises: Exercise[];
+  assignedRoutines?: Routine[];
   onNavigate: (screen: Screen) => void;
   onStartRoutine: (routine: Routine) => void;
 }
 
-export const Home: React.FC<HomeProps> = ({ sessions, progress, exercises, onNavigate, onStartRoutine }) => {
+export const Home: React.FC<HomeProps> = ({ 
+  sessions, 
+  progress, 
+  exercises, 
+  assignedRoutines = [],
+  onNavigate, 
+  onStartRoutine 
+}) => {
   // 1. Weekly Activity Calculation
   // Assuming target is 5 sessions per week.
   const weeklySessions = sessions.length > 5 ? 5 : sessions.length; // Simplified for prototype
@@ -22,7 +30,7 @@ export const Home: React.FC<HomeProps> = ({ sessions, progress, exercises, onNav
   const lastSession = sessions[0]; // Assuming order is newest first
 
   // 3. Last Record (Max weight in the latest session)
-  const lastRecord = lastSession ? lastSession.exercises.reduce((max, ex) => {
+  const lastRecord = (lastSession && lastSession.exercises) ? lastSession.exercises.reduce((max, ex) => {
     const exMaxSet = (ex.sets || []).reduce((sMax, s) => Math.max(sMax, s.weight), 0);
     if (exMaxSet > max.weight) {
       return { name: ex.name, weight: exMaxSet };
@@ -164,6 +172,38 @@ export const Home: React.FC<HomeProps> = ({ sessions, progress, exercises, onNav
           </div>
         </motion.div>
       </div>
+
+      {/* Rutinas Asignadas */}
+      {assignedRoutines.length > 0 && (
+        <section className="pt-4 mb-8">
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h2 className="font-headline text-2xl font-black uppercase italic tracking-tight text-secondary">Tus Programas</h2>
+              <p className="text-[10px] font-bold text-outline uppercase tracking-[0.2em] mt-1">Asignados por tu entrenador</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            {assignedRoutines.map((routine, i) => (
+              <div key={`${routine.id}-${i}`} className="bg-surface-container-high rounded-[32px] p-6 shadow-xl border border-secondary/20 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 shrink-0 rounded-bl-full -mr-16 -mt-16 group-hover:scale-110 transition-transform"></div>
+                <div className="flex justify-between items-start mb-4 relative z-10 gap-4">
+                  <div className="flex-1">
+                    <h3 className="font-headline text-xl font-black uppercase tracking-tight italic leading-tight">{routine.name}</h3>
+                    <p className="text-[10px] font-bold text-outline uppercase tracking-widest mt-1">{routine.level} • {routine.category}</p>
+                  </div>
+                  <button 
+                    onClick={() => onStartRoutine(routine)}
+                    className="bg-secondary text-background hover:bg-white text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-95 transition-transform shrink-0"
+                  >
+                    Iniciar
+                  </button>
+                </div>
+                <p className="text-sm text-on-surface-variant leading-relaxed line-clamp-2 relative z-10">{routine.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Featured Workout */}
       <section className="pt-4">

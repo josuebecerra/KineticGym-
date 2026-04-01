@@ -1,18 +1,18 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Screen } from '../types';
+import { Screen, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { auth } from '../lib/firebase';
-import { signOut, User } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeScreen: Screen;
   onScreenChange: (screen: Screen) => void;
-  user?: User;
+  userProfile?: UserProfile | null;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreenChange, user }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreenChange, userProfile }) => {
   const navItems: { id: Screen; label: string; icon: string }[] = [
     { id: 'inicio', label: 'Inicio', icon: 'dashboard' },
     { id: 'entrenar', label: 'Entrenar', icon: 'fitness_center' },
@@ -60,18 +60,42 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
           </div>
 
           {/* User Controls */}
-          <div className="flex items-center gap-6">
-            {user && (
-              <span className="text-[11px] font-bold text-outline-variant uppercase tracking-widest hidden lg:block">
-                {user.email}
-              </span>
+          <div className="flex items-center gap-4">
+            {userProfile && (
+              <>
+                {['admin', 'trainer'].includes(userProfile.role) && (
+                  <button 
+                    onClick={() => onScreenChange('entrenador')}
+                    className={cn(
+                      "active:scale-95 transition-transform flex items-center justify-center group w-10 h-10 rounded-full border border-outline-variant/10",
+                      activeScreen === 'entrenador' ? "bg-secondary text-background" : "bg-surface-container-high text-secondary hover:bg-surface-container-highest"
+                    )}
+                    title="Panel Entrenador"
+                  >
+                    <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">shield_person</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => onScreenChange('ajustes')}
+                  className="active:scale-95 transition-transform flex items-center gap-3 hover:opacity-80 group ml-2"
+                >
+                  <span className="text-[10px] font-black tracking-widest uppercase hidden lg:block text-outline-variant group-hover:text-primary-container transition-colors">
+                    {userProfile.displayName || (userProfile.email ? userProfile.email.split('@')[0] : 'G')}
+                  </span>
+                  <img 
+                    src={userProfile.avatarUrl || `https://ui-avatars.com/api/?name=${userProfile.displayName || (userProfile.email ? userProfile.email.split('@')[0] : 'G')}&background=CCFF00&color=121212&bold=true`} 
+                    alt="Perfil" 
+                    className="w-10 h-10 rounded-full border-2 border-surface-container group-hover:border-secondary transition-colors object-cover shadow-lg"
+                  />
+                </button>
+              </>
             )}
             <button 
               onClick={handleSignOut}
-              className="active:scale-95 transition-transform text-outline hover:text-error flex items-center justify-center gap-2 group"
+              className="active:scale-95 transition-transform text-outline hover:text-error flex items-center justify-center w-10 h-10 ml-2 group"
               title="Cerrar sesión"
             >
-              <span className="material-symbols-outlined text-2xl group-hover:block transition-all">logout</span>
+              <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">logout</span>
             </button>
           </div>
         </div>

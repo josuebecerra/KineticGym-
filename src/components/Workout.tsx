@@ -12,9 +12,10 @@ interface WorkoutProps {
   onCancel?: () => void;
   workoutState: WorkoutState;
   setWorkoutState: React.Dispatch<React.SetStateAction<WorkoutState>>;
+  userRole?: string;
 }
 
-export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState }) => {
+export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState, userRole }) => {
   const [view, setView] = useState<WorkoutView>(workoutState.isActive ? 'active' : (initialRoutine ? 'preview' : 'selection'));
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(initialRoutine || null);
   
@@ -196,18 +197,20 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
         </section>
 
         <div className="grid grid-cols-2 gap-4">
-          <button 
-            onClick={() => setView('create')}
-            className="bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-95"
-          >
-            <div className="w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center text-primary-container">
-              <span className="material-symbols-outlined">add_circle</span>
-            </div>
-            <span className="font-headline font-bold text-sm uppercase tracking-widest">Nueva Rutina</span>
-          </button>
+          {(userRole === 'admin' || userRole === 'trainer') && (
+            <button 
+              onClick={() => setView('create')}
+              className="bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-95"
+            >
+              <div className="w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center text-primary-container">
+                <span className="material-symbols-outlined">add_circle</span>
+              </div>
+              <span className="font-headline font-bold text-sm uppercase tracking-widest">Nueva Rutina</span>
+            </button>
+          )}
           <button 
             onClick={handleStartFreeSession}
-            className="bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-95"
+            className={`bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-95 ${(userRole === 'admin' || userRole === 'trainer') ? '' : 'col-span-2'}`}
           >
             <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined">bolt</span>

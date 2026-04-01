@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Screen, WorkoutSession, Routine, ProgressLog, WorkoutState } from './types';
+import { Screen, WorkoutSession, Routine, ProgressLog, WorkoutState, UserProfile } from './types';
 import { Layout } from './components/Layout';
 import { Home } from './components/Home';
 import { Workout } from './components/Workout';
 import { History } from './components/History';
 import { Rest } from './components/Rest';
 import { Exercises } from './components/Exercises';
-import { Progress } from './components/Progress.tsx';
+import { Progress } from './components/Progress';
+import { Settings } from './components/Settings';
+import { TrainerDashboard } from './components/TrainerDashboard';
 import { Login } from './components/Login';
 import { EXERCISES } from './constants';
 import { auth } from './lib/firebase';
@@ -15,6 +17,7 @@ import { initializeUser, listenToUserData, saveWorkoutSession, saveProgressLog }
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   
   const [activeScreen, setActiveScreen] = useState<Screen>('inicio');
@@ -52,12 +55,15 @@ export default function App() {
       if (currentUser) {
         try {
           // Initialize user doc if empty
-          await initializeUser(currentUser.uid);
+          await initializeUser(currentUser.uid, currentUser.email || 'user@kinetic.app');
           
           // Listen to their data in real-time
           unsubscribeDB = listenToUserData(currentUser.uid, (data) => {
-            setHistory(data.history.reverse());
-            setProgress(data.progress.reverse());
+            if (data) {
+              setUserProfile(data);
+              setHistory(data.history ? [...data.history].reverse() : []);
+              setProgress(data.progress ? [...data.progress].reverse() : []);
+            }
           });
         } catch (error: any) {
           console.error("Error conectando a Firestore. Revisa las reglas de seguridad:", error);
@@ -68,6 +74,7 @@ export default function App() {
       } else {
         setHistory([]);
         setProgress([]);
+        setUserProfile(null);
         if (unsubscribeDB) unsubscribeDB();
       }
     });
@@ -129,6 +136,7 @@ export default function App() {
           exercises={EXERCISES} 
           onNavigate={setActiveScreen}
           onStartRoutine={handleStartRoutine}
+          assignedRoutines={userProfile?.assignedRoutines || []}
         />
       );
       case 'entrenar': return (
@@ -139,6 +147,7 @@ export default function App() {
           onCancel={() => setPreSelectedRoutine(null)}
           workoutState={workoutState}
           setWorkoutState={setWorkoutState}
+          userRole={userProfile?.role}
         />
       );
       case 'historial': return <History sessions={history} />;
@@ -146,11 +155,14 @@ export default function App() {
       case 'ejercicios': return <Exercises />;
       case 'progreso': return (
         <Progress 
+          user={user}
           logs={progress} 
           onAdd={handleAddProgressLog} 
           onBack={() => setActiveScreen('inicio')} 
         />
       );
+      case 'ajustes': return userProfile ? <Settings profile={userProfile} onBack={() => setActiveScreen('inicio')} /> : <Home />;
+      case 'entrenador': return <TrainerDashboard onBack={() => setActiveScreen('inicio')} currentRole={userProfile?.role} />;
       default: return <Home />;
     }
   };
@@ -162,7 +174,7 @@ export default function App() {
   };
 
   return (
-    <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} user={user}>
+    <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} userProfile={userProfile}>
       {renderScreen()}
 
       {/* Floating Active Workout Widget */}
