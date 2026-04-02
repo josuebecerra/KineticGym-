@@ -4,10 +4,12 @@ import { WorkoutSession } from '../types';
 
 interface HistoryProps {
   sessions: WorkoutSession[];
+  onDeleteSession?: (session: WorkoutSession) => void;
 }
 
-export const History: React.FC<HistoryProps> = ({ sessions }) => {
+export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) => {
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<WorkoutSession | null>(null);
 
   return (
     <motion.div 
@@ -41,12 +43,22 @@ export const History: React.FC<HistoryProps> = ({ sessions }) => {
             onClick={() => setSelectedSession(session)}
             className={index === 0 
               ? "bg-surface-container-high rounded-xl overflow-hidden relative shadow-lg active:scale-[0.98] transition-transform cursor-pointer" 
-              : "bg-surface-container-low p-6 rounded-xl flex justify-between items-center group active:scale-95 transition-transform cursor-pointer border border-outline-variant/5"
+              : "bg-surface-container-low p-6 rounded-xl flex justify-between items-center group active:scale-[0.98] transition-transform cursor-pointer border border-outline-variant/5"
             }
           >
             {index === 0 ? (
               <>
-                <div className="absolute top-0 right-0 p-4">
+                <div className="absolute top-0 right-0 p-4 flex gap-2 items-center">
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionToDelete(session);
+                    }}
+                    className="relative z-[60] w-12 h-12 rounded-full bg-error/10 backdrop-blur-md flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-[0.85]"
+                  >
+                    <span className="material-symbols-outlined text-lg">delete</span>
+                  </button>
                   <span className="bg-secondary px-3 py-1 rounded-full text-[10px] font-black uppercase text-on-secondary tracking-widest shadow-lg">Última</span>
                 </div>
                 <div className="p-6">
@@ -106,6 +118,16 @@ export const History: React.FC<HistoryProps> = ({ sessions }) => {
                     <p className="text-[9px] font-black text-outline uppercase tracking-widest">Volumen</p>
                     <p className="font-headline font-bold text-sm">{session.volume}</p>
                   </div>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionToDelete(session);
+                    }}
+                    className="relative z-50 w-11 h-11 rounded-full bg-surface-container-highest flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-[0.85]"
+                  >
+                    <span className="material-symbols-outlined text-lg">delete</span>
+                  </button>
                   <span className="material-symbols-outlined text-outline group-hover:text-primary-container transition-colors">chevron_right</span>
                 </div>
               </>
@@ -233,9 +255,61 @@ export const History: React.FC<HistoryProps> = ({ sessions }) => {
 
                 <button 
                   onClick={() => setSelectedSession(null)}
-                  className="w-full mt-12 py-5 kinetic-gradient rounded-[24px] font-headline font-black text-on-primary-container tracking-[0.3em] uppercase shadow-2xl active:scale-95 transition-transform"
+                  className="w-full mt-12 py-5 kinetic-gradient rounded-[24px] font-headline font-black text-on-primary-container tracking-[0.3em] uppercase shadow-2xl active:scale-[0.98] transition-transform"
                 >
                   Cerrar Detalles
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {sessionToDelete && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSessionToDelete(null)}
+              className="absolute inset-0 bg-background/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-surface-container-high p-8 rounded-[40px] border border-outline-variant/10 shadow-2xl flex flex-col items-center text-center gap-6"
+            >
+              <div className="w-16 h-16 rounded-full bg-error/10 text-error flex items-center justify-center">
+                <span className="material-symbols-outlined text-4xl">warning</span>
+              </div>
+              
+              <div>
+                <h3 className="font-headline text-2xl font-black uppercase italic leading-tight mb-2">
+                  ¿ELIMINAR SESIÓN?
+                </h3>
+                <p className="text-on-surface-variant text-xs font-bold leading-relaxed px-4">
+                  Esta acción eliminará definitivamente el registro de "{sessionToDelete.name}" de tu historial. No se puede deshacer.
+                </p>
+              </div>
+
+              <div className="w-full flex gap-3">
+                <button 
+                  onClick={() => setSessionToDelete(null)}
+                  className="flex-1 py-4 rounded-xl bg-surface-container-high border border-outline-variant/20 font-headline font-black text-[10px] uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    onDeleteSession?.(sessionToDelete);
+                    setSessionToDelete(null);
+                  }}
+                  className="flex-1 py-4 rounded-xl bg-error font-headline font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-error/20 active:scale-[0.98] transition-transform"
+                >
+                  Confirmar Borrar
                 </button>
               </div>
             </motion.div>

@@ -111,7 +111,7 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack }) => {
 
         <button 
           onClick={handleSave}
-          className="w-full kinetic-gradient py-5 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-95 transition-transform"
+          className="w-full kinetic-gradient py-5 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-[0.98] transition-transform"
         >
           Guardar Cambios
         </button>

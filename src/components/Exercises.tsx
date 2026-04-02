@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { EXERCISES } from '../constants';
 import { Exercise } from '../types';
 
-export const Exercises: React.FC = () => {
+interface ExercisesProps {
+  onBack?: () => void;
+}
+
+export const Exercises: React.FC<ExercisesProps> = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string>('Todos');
@@ -33,11 +37,22 @@ export const Exercises: React.FC = () => {
       animate={{ opacity: 1, y: 0 }}
       className="px-6 pb-32 space-y-8"
     >
-      {/* Search Header */}
-      <section className="mt-8">
-        <h1 className="font-headline font-black text-5xl md:text-7xl text-on-surface tracking-tighter mb-6 uppercase leading-none">
-          Biblioteca <span className="text-secondary">Pro</span>
-        </h1>
+      {/* Header */}
+      <header className="flex flex-col gap-6 mt-8">
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack} 
+              className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-secondary shrink-0 transition-colors shadow-lg"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+          )}
+          <h1 className="font-headline font-black text-4xl md:text-6xl text-on-surface tracking-tighter uppercase leading-none">
+            Biblioteca <span className="text-secondary">Pro</span>
+          </h1>
+        </div>
+
         <div className="relative">
           <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
           <input 
@@ -48,7 +63,7 @@ export const Exercises: React.FC = () => {
             type="text" 
           />
         </div>
-      </section>
+      </header>
 
       {/* Filters Section */}
       <section className="space-y-6">
@@ -116,10 +131,10 @@ export const Exercises: React.FC = () => {
                 </div>
               </div>
               <div className="p-6">
-                <h4 className="font-headline font-black text-xl text-on-surface leading-tight uppercase tracking-tighter mb-1">{ex.name}</h4>
-                <div className="flex items-center gap-3 text-on-surface-variant text-[10px] font-black uppercase tracking-widest">
-                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-secondary"></span> {ex.muscle}</span>
-                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-sm">fitness_center</span> {ex.equipment}</span>
+                <h4 className="font-headline font-black text-xl text-on-surface leading-tight uppercase tracking-tighter mb-2 line-clamp-2 min-h-[3rem]">{ex.name}</h4>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-on-surface-variant text-[9px] font-black uppercase tracking-widest">
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-secondary"></span> {ex.muscle}</span>
+                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-[14px]">fitness_center</span> {ex.equipment}</span>
                 </div>
               </div>
             </motion.div>
@@ -153,10 +168,14 @@ export const Exercises: React.FC = () => {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed inset-x-0 bottom-0 h-[85vh] bg-surface-container-lowest rounded-t-[40px] z-[101] shadow-2xl overflow-y-auto"
             >
-              <div className="sticky top-0 p-6 flex justify-between items-center bg-surface-container-lowest/80 backdrop-blur z-10">
-                <div className="w-12 h-1.5 bg-outline-variant/30 rounded-full absolute top-3 left-1/2 -translate-x-1/2" />
-                <button onClick={() => setSelectedExercise(null)} className="p-2 rounded-full bg-surface-container-highest text-on-surface">
-                  <span className="material-symbols-outlined">close</span>
+              <div className="sticky top-0 p-4 sm:p-6 flex justify-between items-center bg-surface-container-lowest/90 backdrop-blur-md z-50 border-b border-outline-variant/10">
+                <div className="w-12 h-1.5 bg-outline-variant/30 rounded-full absolute top-2 left-1/2 -translate-x-1/2 sm:hidden" />
+                <h3 className="font-headline font-bold text-sm uppercase tracking-widest text-outline truncate mr-4">Detalles del Movimiento</h3>
+                <button 
+                  onClick={() => setSelectedExercise(null)} 
+                  className="w-10 h-10 rounded-full bg-surface-container-highest text-on-surface flex items-center justify-center hover:text-error transition-colors shrink-0"
+                >
+                  <span className="material-symbols-outlined text-xl">close</span>
                 </button>
               </div>
 

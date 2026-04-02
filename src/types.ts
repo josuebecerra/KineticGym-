@@ -1,4 +1,23 @@
-export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso' | 'ajustes' | 'entrenador';
+export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso' | 'ajustes' | 'entrenador' | 'ranking' | 'info' | 'explorar';
+
+export interface GymSchedule {
+  day: string;
+  open: string;
+  close: string;
+}
+
+export interface NewsItem {
+  id: string;
+  title: string;
+  content: string;
+  date: string;
+  type: 'info' | 'promo' | 'alert' | 'event';
+}
+
+export interface GymInfo {
+  schedules: GymSchedule[];
+  news: NewsItem[];
+}
 
 export interface UserProfile {
   uid: string;
@@ -85,4 +104,10 @@ export interface WorkoutState {
   selectedRoutine: Routine | null;
   activeExercises: ActiveExercise[];
   elapsedSeconds: number;
+}
+
+export interface RestState {
+  isActive: boolean;
+  timeLeft: number;
+  totalTime: number;
 }

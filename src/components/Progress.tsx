@@ -122,19 +122,22 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
       animate={{ opacity: 1, x: 0 }}
       className="px-6 pt-4 pb-24 space-y-8"
     >
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <button 
+            onClick={onBack} 
+            className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-secondary shrink-0 transition-colors"
+          >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <div>
-            <h1 className="font-headline text-3xl font-black tracking-tight uppercase italic leading-none">PROGRESO</h1>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-[0.2em] mt-1">Evolución Corporal</p>
+          <div className="min-w-0">
+            <h1 className="font-headline text-3xl font-black tracking-tight uppercase italic leading-none truncate">PROGRESO</h1>
+            <p className="text-[10px] font-black text-secondary uppercase tracking-[0.2em] mt-1 truncate">Evolución Corporal</p>
           </div>
         </div>
         <button 
           onClick={() => setIsAdding(true)}
-          className="w-12 h-12 rounded-2xl kinetic-gradient flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-transform"
+          className="w-12 h-12 rounded-2xl kinetic-gradient flex items-center justify-center shadow-lg shadow-primary/20 active:scale-[0.98] transition-all shrink-0 ml-auto"
         >
           <span className="material-symbols-outlined text-on-primary-container font-black">add</span>
         </button>
@@ -287,18 +290,18 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
       {/* Photos Grid */}
       <section className="space-y-4">
         <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Gelería de Progreso</h3>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           {logs.flatMap(l => l.photos).map((photo, i) => (
-            <div key={i} className="aspect-square rounded-2xl overflow-hidden border border-outline-variant/10 shadow-lg group relative">
+            <div key={i} className="aspect-square rounded-2xl overflow-hidden border border-outline-variant/10 shadow-md group relative hover:scale-105 transition-transform duration-300">
               <img src={photo} alt={`Progreso ${i}`} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
             </div>
           ))}
           <button 
             onClick={() => setIsAdding(true)}
-            className="aspect-square rounded-2xl bg-surface-container-high border-2 border-dashed border-outline-variant/20 flex flex-col items-center justify-center gap-2 text-outline hover:text-secondary hover:border-secondary/40 transition-all active:scale-95"
+            className="aspect-square rounded-2xl bg-surface-container-high border-2 border-dashed border-outline-variant/20 flex flex-col items-center justify-center gap-1.5 text-outline hover:text-secondary hover:border-secondary/40 transition-all active:scale-[0.98] group"
           >
-            <span className="material-symbols-outlined">add_a_photo</span>
-            <span className="text-[8px] font-black uppercase tracking-widest">Añadir</span>
+            <span className="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">add_a_photo</span>
+            <span className="text-[7px] font-black uppercase tracking-widest text-center px-1">Nueva Foto</span>
           </button>
         </div>
       </section>
@@ -422,7 +425,7 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
                 <button 
                   onClick={handleSubmit}
                   disabled={isUploading}
-                  className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-95 transition-transform text-lg mt-8 disabled:opacity-50 disabled:active:scale-100"
+                  className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-[0.98] transition-transform text-lg mt-8 disabled:opacity-50 disabled:active:scale-100"
                 >
                   {isUploading ? 'Subiendo Fotografía...' : 'Guardar Progreso'}
                 </button>

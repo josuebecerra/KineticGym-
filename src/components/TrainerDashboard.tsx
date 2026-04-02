@@ -85,9 +85,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         <section className="space-y-4">
           <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Alumnos Activos</h3>
           <div className="space-y-2">
-            {trainees.map(t => (
+            {trainees.map((t, index) => (
               <div 
-                key={t.uid}
+                key={t.uid || `trainee-${index}`}
                 onClick={() => setSelectedTrainee(t)}
                 className="bg-surface-container-high border border-outline-variant/10 p-4 rounded-[28px] cursor-pointer flex items-center justify-between hover:bg-surface-container-low transition-colors"
               >
@@ -154,7 +154,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                   </div>
                   <button 
                     onClick={() => handleAssign(routine)}
-                    className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-95 transition-transform shrink-0"
+                    className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-transform shrink-0"
                   >
                     Asignar
                   </button>

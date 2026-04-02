@@ -186,14 +186,14 @@ export const Home: React.FC<HomeProps> = ({
             {assignedRoutines.map((routine, i) => (
               <div key={`${routine.id}-${i}`} className="bg-surface-container-high rounded-[32px] p-6 shadow-xl border border-secondary/20 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 shrink-0 rounded-bl-full -mr-16 -mt-16 group-hover:scale-110 transition-transform"></div>
-                <div className="flex justify-between items-start mb-4 relative z-10 gap-4">
-                  <div className="flex-1">
+                <div className="flex flex-wrap justify-between items-start mb-4 relative z-10 gap-x-4 gap-y-2">
+                  <div className="flex-1 min-w-[120px]">
                     <h3 className="font-headline text-xl font-black uppercase tracking-tight italic leading-tight">{routine.name}</h3>
                     <p className="text-[10px] font-bold text-outline uppercase tracking-widest mt-1">{routine.level} • {routine.category}</p>
                   </div>
                   <button 
                     onClick={() => onStartRoutine(routine)}
-                    className="bg-secondary text-background hover:bg-white text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-95 transition-transform shrink-0"
+                    className="bg-secondary text-background hover:bg-white text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-transform shrink-0"
                   >
                     Iniciar
                   </button>
@@ -220,14 +220,16 @@ export const Home: React.FC<HomeProps> = ({
           <div className="absolute top-6 right-6">
             <div className="bg-secondary text-on-secondary px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">SUGERIDO</div>
           </div>
-          <div className="absolute bottom-0 left-0 p-8 w-full flex justify-between items-end">
-            <div className="max-w-[70%]">
-              <p className="text-secondary font-black text-[10px] uppercase tracking-[0.3em] mb-1">RETO DEL DÍA</p>
-              <h3 className="font-headline text-3xl md:text-4xl font-black leading-none uppercase italic tracking-tighter">{ROUTINES[0].name}</h3>
-              <p className="text-on-surface-variant text-xs font-bold mt-2 opacity-80">{ROUTINES[0].description}</p>
-            </div>
-            <div className="w-16 h-16 kinetic-gradient rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-on-primary-container text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+          <div className="absolute inset-0 p-8 flex flex-col justify-end pointer-events-none">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
+              <div className="max-w-full sm:max-w-[70%]">
+                <p className="text-secondary font-black text-[10px] uppercase tracking-[0.3em] mb-1">RETO DEL DÍA</p>
+                <h3 className="font-headline text-3xl md:text-5xl font-black leading-none uppercase italic tracking-tighter animate-in fade-in slide-in-from-bottom-2">{ROUTINES[0].name}</h3>
+                <p className="text-on-surface-variant text-xs font-bold mt-2 opacity-80 line-clamp-2 md:line-clamp-none leading-relaxed">{ROUTINES[0].description}</p>
+              </div>
+              <div className="w-16 h-16 kinetic-gradient rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 active:scale-90 transition-transform shrink-0 self-end sm:self-auto pointer-events-auto">
+                <span className="material-symbols-outlined text-on-primary-container text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+              </div>
             </div>
           </div>
         </div>

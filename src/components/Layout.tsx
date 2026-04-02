@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'motion/react';
 import { Screen, UserProfile } from '../types';
 import { cn } from '../lib/utils';
 import { auth } from '../lib/firebase';
@@ -14,11 +13,11 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreenChange, userProfile }) => {
   const navItems: { id: Screen; label: string; icon: string }[] = [
-    { id: 'inicio', label: 'Inicio', icon: 'dashboard' },
-    { id: 'entrenar', label: 'Entrenar', icon: 'fitness_center' },
-    { id: 'historial', label: 'Historial', icon: 'history' },
-    { id: 'descanso', label: 'Descanso', icon: 'timer' },
-    { id: 'ejercicios', label: 'Ejercicios', icon: 'library_books' },
+    { id: 'inicio', label: 'Incio', icon: 'dashboard' },
+    { id: 'entrenar', label: 'Fuerza', icon: 'fitness_center' },
+    { id: 'historial', label: 'Bitácora', icon: 'history' },
+    { id: 'descanso', label: 'Cronos', icon: 'timer' },
+    { id: 'explorar', label: 'Centro', icon: 'widgets' },
   ];
 
   const handleSignOut = () => {
@@ -48,10 +47,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
                   <span className="font-body text-[11px] font-bold uppercase tracking-[0.2em] mt-1 relative">
                     {item.label}
                     {activeScreen === item.id && (
-                      <motion.div 
-                        layoutId="desktop-active-indicator"
-                        className="absolute -bottom-2 left-0 right-0 h-0.5 bg-secondary"
-                      />
+                      <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-secondary" />
                     )}
                   </span>
                 </button>
@@ -67,7 +63,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
                   <button 
                     onClick={() => onScreenChange('entrenador')}
                     className={cn(
-                      "active:scale-95 transition-transform flex items-center justify-center group w-10 h-10 rounded-full border border-outline-variant/10",
+                      "active:scale-[0.98] transition-transform flex items-center justify-center group w-10 h-10 rounded-full border border-outline-variant/10",
                       activeScreen === 'entrenador' ? "bg-secondary text-background" : "bg-surface-container-high text-secondary hover:bg-surface-container-highest"
                     )}
                     title="Panel Entrenador"
@@ -77,7 +73,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
                 )}
                 <button
                   onClick={() => onScreenChange('ajustes')}
-                  className="active:scale-95 transition-transform flex items-center gap-3 hover:opacity-80 group ml-2"
+                  className="active:scale-[0.98] transition-transform flex items-center gap-3 hover:opacity-80 group ml-2"
                 >
                   <span className="text-[10px] font-black tracking-widest uppercase hidden lg:block text-outline-variant group-hover:text-primary-container transition-colors">
                     {userProfile.displayName || (userProfile.email ? userProfile.email.split('@')[0] : 'G')}
@@ -92,7 +88,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
             )}
             <button 
               onClick={handleSignOut}
-              className="active:scale-95 transition-transform text-outline hover:text-error flex items-center justify-center w-10 h-10 ml-2 group"
+              className="active:scale-[0.98] transition-transform text-outline hover:text-error flex items-center justify-center w-10 h-10 ml-2 group"
               title="Cerrar sesión"
             >
               <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">logout</span>
@@ -114,7 +110,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
               key={item.id}
               onClick={() => onScreenChange(item.id)}
               className={cn(
-                "flex flex-col items-center justify-center transition-all duration-200 active:scale-90",
+                "flex flex-col items-center justify-center transition-all duration-200 active:scale-[0.98]",
                 activeScreen === item.id ? "text-secondary scale-110" : "text-outline hover:text-primary-container"
               )}
             >

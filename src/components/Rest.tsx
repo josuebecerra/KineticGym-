@@ -1,46 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { RestState } from '../types';
 
-export const Rest: React.FC = () => {
-  const [timeLeft, setTimeLeft] = useState(90);
-  const [totalTime, setTotalTime] = useState(90);
-  const [isActive, setIsActive] = useState(false);
+interface RestProps {
+  restState: RestState;
+  setRestState: React.Dispatch<React.SetStateAction<RestState>>;
+}
 
-  // Sound notification using Web Audio API
-  const playEndSound = useCallback(() => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
-      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
-
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 1);
-    } catch (e) {
-      console.warn('Audio not supported or blocked', e);
-    }
-  }, []);
-
-  useEffect(() => {
-    let interval: number;
-    if (isActive && timeLeft > 0) {
-      interval = window.setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && isActive) {
-      setIsActive(false);
-      playEndSound();
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft, playEndSound]);
+export const Rest: React.FC<RestProps> = ({ restState, setRestState }) => {
+  const { timeLeft, totalTime, isActive } = restState;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -49,173 +17,234 @@ export const Rest: React.FC = () => {
   };
 
   const handleReset = () => {
-    setIsActive(false);
-    setTimeLeft(totalTime);
+    setRestState(prev => ({ ...prev, isActive: false, timeLeft: prev.totalTime }));
+  };
+
+  const handleToggle = () => {
+    setRestState(prev => ({ ...prev, isActive: !prev.isActive }));
   };
 
   const handleAdd = (secs: number) => {
-    setTimeLeft((prev) => prev + secs);
-    // Adjust totalTime if we exceed it to avoid negative offset
-    if (timeLeft + secs > totalTime) {
-      setTotalTime(timeLeft + secs);
-    }
+    setRestState(prev => {
+      const newTimeLeft = prev.timeLeft + secs;
+      return {
+        ...prev,
+        timeLeft: newTimeLeft,
+        totalTime: newTimeLeft > prev.totalTime ? newTimeLeft : prev.totalTime
+      };
+    });
   };
 
   const selectPreset = (secs: number) => {
-    setIsActive(false);
-    setTotalTime(secs);
-    setTimeLeft(secs);
+    setRestState({
+      isActive: true,
+      totalTime: secs,
+      timeLeft: secs
+    });
   };
 
   // SVG Ring calculation
-  const radius = 48; // Percentage
+  const radius = 48;
   const circumference = 2 * Math.PI * radius;
-  const percentage = totalTime > 0 ? (timeLeft / totalTime) * 100 : 0;
+  const percentage = (totalTime && totalTime > 0) ? (timeLeft / totalTime) * 100 : 0;
   const offset = circumference - (percentage / 100) * circumference;
 
   return (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="px-6 pt-8 pb-24 space-y-12"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="relative flex flex-col px-6 py-8 pb-32 overflow-hidden"
     >
-      {/* Header */}
-      <div>
-        <span className="text-secondary font-headline font-bold uppercase tracking-[0.2em] text-[10px]">Tiempo de Recuperación</span>
-        <h1 className="text-on-surface font-headline font-black text-5xl mt-1 tracking-tight">DESCANSO</h1>
+      {/* Simplified Background Glow - No overflow-hidden container */}
+      <div className="absolute inset-0 pointer-events-none">
+        <motion.div 
+          animate={{ 
+            scale: isActive ? [1, 1.2, 1] : 1,
+            opacity: isActive ? [0.1, 0.2, 0.1] : 0.05
+          }}
+          transition={{ repeat: Infinity, duration: 5 }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-secondary/20 rounded-full blur-[150px]"
+        />
       </div>
 
-      {/* Timer Module */}
-      <section className="relative flex flex-col items-center justify-center">
-        <div className="relative w-72 h-72 md:w-96 md:h-96 flex items-center justify-center">
-          <svg className="absolute w-full h-full -rotate-90" viewBox="0 0 100 100">
+      <div className="relative z-10 flex flex-col items-center flex-1 justify-between gap-12">
+        {/* Header */}
+        <div className="text-center">
+          <motion.span 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-secondary font-headline font-bold uppercase tracking-[0.3em] text-[10px]"
+          >
+            Recuperación Activa
+          </motion.span>
+          <motion.h1 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-on-surface font-headline font-black text-6xl mt-2 tracking-tighter"
+          >
+            DESCANSO
+          </motion.h1>
+        </div>
+
+        {/* Immersive Timer Ring */}
+        <div className="relative w-[70vw] h-[70vw] max-w-[320px] max-h-[320px] md:max-w-[450px] md:max-h-[450px] flex items-center justify-center bg-transparent shrink-0">
+          <svg className="absolute w-full h-full -rotate-90 bg-transparent overflow-visible" viewBox="0 0 100 100">
             <circle 
-              className="text-surface-container-highest" 
-              cx="50" cy="50" fill="transparent" r={radius} 
-              stroke="currentColor" strokeWidth="4" 
+              className="text-surface-container-highest/30" 
+              cx="50" cy="50" fill="none" r={radius} 
+              stroke="currentColor" strokeWidth="2.5" 
             />
             <motion.circle 
-              className="text-primary-container" 
-              cx="50" cy="50" fill="transparent" r={radius} 
-              stroke="currentColor" strokeWidth="4" 
+              className="text-secondary" 
+              cx="50" cy="50" fill="none" r={radius} 
+              stroke="currentColor" strokeWidth="3" 
               strokeDasharray={circumference}
               animate={{ strokeDashoffset: offset }}
               transition={{ ease: "linear", duration: 1 }}
               strokeLinecap="round"
-              style={{ filter: 'drop-shadow(0px 0px 8px rgba(243, 255, 202, 0.4))' }}
             />
           </svg>
-          <div className="text-center z-10">
-            <motion.div 
-              key={timeLeft}
-              initial={{ scale: 0.9, opacity: 0.8 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="font-headline font-black text-7xl md:text-9xl tracking-tighter text-on-surface tabular-nums"
-            >
-              {formatTime(timeLeft)}
-            </motion.div>
-            <div className="text-secondary font-headline font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Segundos Restantes</div>
-          </div>
-        </div>
-
-        {/* Primary Controls */}
-        <div className="flex items-center justify-center gap-6 mt-12 w-full max-w-md">
-          <button 
-            onClick={handleReset}
-            className="flex flex-col items-center justify-center w-16 h-16 rounded-full bg-surface-container-high text-on-surface-variant hover:text-primary-container transition-colors active:scale-90 duration-200 shadow-lg"
-          >
-            <span className="material-symbols-outlined text-2xl">refresh</span>
-            <span className="text-[9px] font-black uppercase mt-1">Reiniciar</span>
-          </button>
           
-          <button 
-            onClick={() => setIsActive(!isActive)}
-            className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-all ${isActive ? 'bg-surface-container-highest text-secondary border-2 border-secondary' : 'secondary-gradient text-on-secondary shadow-secondary/30'}`}
-          >
-            <span className="material-symbols-outlined text-5xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-              {isActive ? 'pause' : 'play_arrow'}
-            </span>
-          </button>
-
-          <button 
-            onClick={() => handleAdd(30)}
-            className="flex flex-col items-center justify-center w-16 h-16 rounded-full bg-surface-container-high text-on-surface-variant hover:text-primary-container transition-colors active:scale-90 duration-200 shadow-lg"
-          >
-            <span className="font-headline font-black text-lg">+30s</span>
-            <span className="text-[9px] font-black uppercase">Añadir</span>
-          </button>
-        </div>
-
-        {/* Preset & Rapid Add Row */}
-        <div className="flex gap-2 mt-8 overflow-x-auto pb-4 w-full max-w-md justify-center no-scrollbar">
-           {[30, 60, 90, 120, 180].map(s => (
-             <button 
-               key={s}
-               onClick={() => selectPreset(s)} 
-               className="px-4 py-2 rounded-full bg-surface-container-low border border-outline-variant/10 font-headline font-bold text-[10px] uppercase tracking-widest text-on-surface-variant hover:border-primary-container shrink-0"
-             >
-               {s < 60 ? `${s}s` : `${s/60}m`}
-             </button>
-           ))}
-           <button onClick={() => handleAdd(60)} className="px-5 py-2 rounded-full kinetic-gradient font-headline font-black text-[10px] uppercase tracking-widest text-on-primary-container shrink-0">+1m</button>
-        </div>
-      </section>
-
-      {/* Bento Grid Info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 bg-surface-container-high rounded-[32px] p-8 overflow-hidden relative group min-h-[200px] border border-outline-variant/5 shadow-xl">
-          <div className="absolute top-0 right-0 w-1/2 h-full opacity-20 group-hover:opacity-40 transition-opacity">
-            <img 
-              alt="Next exercise" 
-              className="w-full h-full object-cover grayscale" 
-              src="https://images.unsplash.com/photo-1541534741688-6078c64b52d3?q=80&w=2070&auto=format&fit=crop"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <div className="relative z-10 flex flex-col justify-between h-full">
-            <div>
-              <span className="bg-primary-container text-on-primary-container px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">SIGUIENTE EJERCICIO</span>
-              <h2 className="text-on-surface font-headline font-black text-3xl mt-4 leading-none uppercase tracking-tighter">Sentadilla con <br/>Barra Trasera</h2>
-            </div>
-            <div className="mt-8 flex gap-8">
-              <div>
-                <span className="text-[10px] uppercase font-black tracking-widest text-outline block mb-1">SERIES</span>
-                <span className="text-primary-container font-headline font-black text-2xl">3 / 4</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-black tracking-widest text-outline block mb-1">PESO</span>
-                <span className="text-primary-container font-headline font-black text-2xl">85 KG</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-black tracking-widest text-outline block mb-1">REPS</span>
-                <span className="text-primary-container font-headline font-black text-2xl">10</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low rounded-[32px] p-8 flex flex-col justify-between border border-outline-variant/5 shadow-md">
-          <div>
-            <span className="material-symbols-outlined text-secondary text-4xl mb-4">monitor_heart</span>
-            <h3 className="text-outline font-black text-[10px] uppercase tracking-widest">Rendimiento Cardiaco</h3>
-            <div className="flex items-baseline gap-2 mt-2">
-              <motion.span 
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 0.8 }}
-                className="text-on-surface font-headline font-black text-5xl"
+          <div className="text-center z-10">
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={timeLeft}
+                initial={{ scale: 0.9, opacity: 0.8 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="font-headline font-black text-7xl sm:text-8xl md:text-[140px] tracking-tighter text-on-surface tabular-nums leading-none"
               >
-                124
-              </motion.span>
-              <span className="text-secondary font-black text-xs">BPM</span>
+                {formatTime(timeLeft)}
+              </motion.div>
+            </AnimatePresence>
+            <motion.div 
+              animate={{ opacity: isActive ? [0.4, 1, 0.4] : 1 }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="text-outline font-headline font-bold text-[10px] uppercase tracking-[0.4em] mt-4"
+            >
+              {isActive ? 'Cronómetro Corriendo' : 'Pausado'}
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Controls Overlay */}
+        <div className="w-full max-w-lg space-y-10">
+          <div className="flex items-center justify-center gap-8">
+            <button 
+              onClick={handleReset}
+              className="w-14 h-14 rounded-full bg-surface-container-high text-on-surface hover:text-secondary transition-all active:scale-90 flex items-center justify-center border border-outline-variant/10 group"
+            >
+              <span className="material-symbols-outlined text-2xl group-hover:rotate-180 transition-transform duration-500">refresh</span>
+            </button>
+            
+            <button 
+              onClick={handleToggle}
+              className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl active:scale-[0.98] transition-all relative overflow-hidden group ${isActive ? 'bg-surface-container-highest text-secondary border border-secondary/30' : 'bg-secondary text-on-secondary shadow-secondary/40'}`}
+            >
+              <AnimatePresence mode="wait">
+                <motion.span 
+                  key={isActive ? 'pause' : 'play'}
+                  initial={{ scale: 0, rotate: -90 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  exit={{ scale: 0, rotate: 90 }}
+                  className="material-symbols-outlined text-5xl relative z-10" 
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  {isActive ? 'pause' : 'play_arrow'}
+                </motion.span>
+              </AnimatePresence>
+              {!isActive && <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />}
+            </button>
+
+            <button 
+              onClick={() => handleAdd(30)}
+              className="w-14 h-14 rounded-full bg-surface-container-high text-on-surface hover:text-secondary transition-all active:scale-90 flex items-center justify-center border border-outline-variant/10"
+            >
+              <span className="font-headline font-black text-sm">+30s</span>
+            </button>
+          </div>
+
+          {/* Quick Targets Row */}
+          <div className="flex gap-3 overflow-x-auto pb-4 justify-start no-scrollbar px-1">
+             {[30, 60, 90, 120, 180].map(s => (
+               <button 
+                 key={s}
+                 onClick={() => selectPreset(s)} 
+                 className={`px-6 py-2.5 rounded-full font-headline font-bold text-[10px] uppercase tracking-widest transition-all shrink-0 border ${totalTime === s ? 'bg-secondary text-on-secondary border-secondary shadow-lg shadow-secondary/20' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/20 hover:border-secondary'}`}
+               >
+                 {s < 60 ? `${s}s` : `${s/60}m`}
+               </button>
+             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Info Sections - More integrated */}
+      <div className="mt-12 md:mt-16 grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-surface-container-high/50 backdrop-blur-md rounded-[32px] p-8 border border-outline-variant/10 flex flex-col justify-between group overflow-hidden"
+        >
+          <div className="relative">
+            <span className="text-secondary font-black text-[10px] uppercase tracking-widest block mb-1">Próxima Misión</span>
+            <h2 className="text-3xl font-headline font-black text-on-surface uppercase italic">Sentadilla con Barra</h2>
+            <div className="mt-6 flex gap-6">
+              <div>
+                <p className="text-[10px] font-black text-outline uppercase tracking-widest">Serie</p>
+                <p className="text-xl font-headline font-black text-primary-container">3 / 4</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-outline uppercase tracking-widest">Carga</p>
+                <p className="text-xl font-headline font-black text-primary-container">85 KG</p>
+              </div>
             </div>
           </div>
-          <div className="mt-6 h-12 flex items-end gap-1.5 grayscale opacity-50">
-            {[40, 60, 30, 80, 50, 70, 90, 60, 45].map((h, i) => (
-              <div key={i} className="flex-1 bg-secondary rounded-t-sm" style={{ height: `${h}%` }} />
+          <div className="mt-8 flex items-center gap-2 text-outline group-hover:text-secondary transition-colors cursor-pointer">
+            <span className="text-[10px] font-bold uppercase tracking-widest">Ver Detalles Técnica</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          </div>
+          
+          <div className="absolute -bottom-4 -right-4 opacity-5 group-hover:scale-110 transition-transform duration-1000">
+            <span className="material-symbols-outlined text-9xl">fitness_center</span>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-surface-container-low/50 backdrop-blur-md rounded-[32px] p-8 border border-outline-variant/10 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex justify-between items-start">
+              <span className="text-outline font-black text-[10px] uppercase tracking-widest">Ritmo Cardiaco</span>
+              <motion.span 
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 0.8 }}
+                className="material-symbols-outlined text-secondary text-2xl"
+              >
+                favorite
+              </motion.span>
+            </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-on-surface font-headline font-black text-5xl">124</span>
+              <span className="text-secondary font-bold text-xs uppercase italic">bpm</span>
+            </div>
+          </div>
+          
+          <div className="mt-8 h-12 flex items-end gap-1.5 opacity-40">
+            {[40, 60, 30, 80, 50, 70, 90, 60, 45, 70, 30, 50].map((h, i) => (
+              <motion.div 
+                key={i} 
+                initial={{ height: 0 }}
+                animate={{ height: `${h}%` }}
+                className="flex-1 bg-secondary rounded-full" 
+              />
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
     </motion.div>
   );
 };
+;
