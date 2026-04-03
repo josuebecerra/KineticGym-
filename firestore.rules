@@ -30,5 +30,12 @@ service cloud.firestore {
         )
       );
     }
+
+    match /gym_configs/{docId} {
+      // Todos pueden leer la configuración del gimnasio (para ver noticias e info)
+      allow read: if true;
+      // Solo el staff puede modificar la configuración o añadir noticias
+      allow write: if request.auth != null && isStaff();
+    }
   }
 }

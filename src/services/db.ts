@@ -13,7 +13,7 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo } from '../types';
+import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData } from '../types';
 
 // Helper to get a user's reference
 const getUserRef = (uid: string) => doc(db, 'users', uid);
@@ -116,43 +116,49 @@ export const listenToUserData = (
 export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
   const infoRef = doc(db, 'gym_configs', 'general');
   
+  const defaults: GymInfo = {
+    schedules: [
+      { day: 'Lunes', open: '05:00', close: '22:00' },
+      { day: 'Martes', open: '05:00', close: '22:00' },
+      { day: 'Miércoles', open: '05:00', close: '22:00' },
+      { day: 'Jueves', open: '05:00', close: '22:00' },
+      { day: 'Viernes', open: '05:00', close: '22:00' },
+      { day: 'Sábado', open: '07:00', close: '18:00' },
+      { day: 'Domingo', open: '08:00', close: '13:00' }
+    ],
+    news: [
+      { 
+        id: '1', 
+        title: '¡Bienvenidos a Kinetic!', 
+        content: 'Estamos emocionados de tenerte aquí. Revisa tus rutinas asignadas en la pestaña Entrenar.', 
+        date: new Date().toISOString(),
+        type: 'info'
+      }
+    ]
+  };
+
   return onSnapshot(infoRef, 
     async (docSnap) => {
       try {
         if (docSnap.exists()) {
           onUpdate(docSnap.data() as GymInfo);
         } else {
-          // Initialize with defaults if empty
-        const defaults: GymInfo = {
-          schedules: [
-            { day: 'Lunes', open: '05:00', close: '22:00' },
-            { day: 'Martes', open: '05:00', close: '22:00' },
-            { day: 'Miércoles', open: '05:00', close: '22:00' },
-            { day: 'Jueves', open: '05:00', close: '22:00' },
-            { day: 'Viernes', open: '05:00', close: '22:00' },
-            { day: 'Sábado', open: '07:00', close: '18:00' },
-            { day: 'Domingo', open: '08:00', close: '13:00' }
-          ],
-            news: [
-              { 
-                id: '1', 
-                title: '¡Bienvenidos a Kinetic!', 
-                content: 'Estamos emocionados de tenerte aquí. Revisa tus rutinas asignadas en la pestaña Entrenar.', 
-                date: new Date().toISOString(),
-                type: 'info'
-              }
-            ]
-          };
-          await setDoc(infoRef, defaults);
+          // Initialize with defaults if empty (this might fail if not admin, which is fine)
+          try {
+            await setDoc(infoRef, defaults);
+          } catch (e) {
+            console.warn("Could not auto-initialize gym_configs. This is normal for non-admins.");
+          }
           onUpdate(defaults);
         }
       } catch (err) {
-        console.error("Error internally processing gym info snapshot:", err);
+        console.error("Error processing gym info snapshot:", err);
+        onUpdate(defaults);
       }
     },
     (error) => {
-      console.error("CRITICAL: Firestore Permission Denied for 'gym_configs'.", error);
-      // We could trigger a special state here if needed
+      console.error("CRITICAL: Firestore Permission Denied for 'gym_configs'. Using local defaults.", error);
+      onUpdate(defaults);
     }
   );
 };
@@ -187,6 +193,14 @@ export const updateUserProfile = async (uid: string, changes: Partial<UserProfil
 // Upload an avatar photo as compressed base64 string
 export const uploadAvatarPhoto = async (uid: string, file: File): Promise<string> => {
   return await compressImage(file, 400);
+};
+
+// Save assessment results
+export const saveAssessment = async (uid: string, data: AssessmentData) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    assessment: data
+  });
 };
 
 // Generic Base64 Compressor to bypass Firebase Storage and fit in < 1MB limit

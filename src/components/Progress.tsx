@@ -1,17 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ProgressLog } from '../types';
+import { ProgressLog, UserProfile } from '../types';
 import { uploadProgressPhoto } from '../services/db';
 import { User } from 'firebase/auth';
 
 interface ProgressProps {
   user: User;
+  userProfile: UserProfile;
   logs: ProgressLog[];
   onAdd: (log: ProgressLog) => void;
+  onEditAssessment: () => void;
   onBack: () => void;
 }
 
-export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack }) => {
+export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onAdd, onEditAssessment, onBack }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [newLog, setNewLog] = useState({
@@ -32,6 +34,7 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
   const previousLog = logs[1];
   
   const weightDiff = latestLog && previousLog ? latestLog.weight - previousLog.weight : 0;
+  const totalWeightDiff = latestLog && userProfile.assessment?.weight ? latestLog.weight - userProfile.assessment.weight : 0;
 
   // Improved SVG Line Chart with Curves
   const chartWidth = 400;
@@ -143,6 +146,89 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
         </button>
       </header>
 
+      {/* Ficha Inicial Section */}
+      {userProfile.assessment && (
+        <section className="bg-surface-container-high rounded-[40px] p-8 border border-outline-variant/10 shadow-2xl relative overflow-hidden group">
+          <div className="absolute -top-6 -right-6 w-32 h-32 bg-secondary/5 rounded-full blur-3xl group-hover:bg-secondary/10 transition-colors" />
+          
+          <div className="flex justify-between items-start mb-6">
+            <div className="space-y-1">
+              <h3 className="text-[10px] font-black tracking-[0.3em] uppercase text-outline">Ficha de Inicio</h3>
+              <p className="font-headline text-3xl font-black italic uppercase tracking-tight">Estado <span className="text-secondary">Base</span></p>
+            </div>
+            <button 
+              onClick={onEditAssessment}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface-container-highest text-[10px] font-black uppercase tracking-widest text-secondary border border-secondary/20 hover:bg-secondary hover:text-on-secondary transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">edit_note</span>
+              Editar
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 bg-background/40 p-4 rounded-2xl border border-outline-variant/5">
+                <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center text-secondary">
+                  <span className="material-symbols-outlined font-black">
+                    {userProfile.assessment.goal === 'weight_loss' ? 'monitor_weight' : 
+                     userProfile.assessment.goal === 'muscle_gain' ? 'fitness_center' : 'directions_run'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black uppercase text-outline tracking-widest">Objetivo Principal</p>
+                  <p className="font-headline font-black uppercase italic text-lg leading-none mt-1">
+                    {userProfile.assessment.goal === 'weight_loss' ? 'Perder Peso' : 
+                     userProfile.assessment.goal === 'muscle_gain' ? 'Ganar Masa' : 'Forma Física'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-background/40 p-3 rounded-2xl border border-outline-variant/5">
+                  <p className="text-[7px] font-black uppercase text-outline tracking-widest leading-none">Nivel</p>
+                  <p className="font-headline font-black uppercase italic text-xs mt-1.5 truncate">
+                    {userProfile.assessment.knowledge === 'first_time' ? 'Novato' : 
+                     userProfile.assessment.knowledge === 'little' ? 'Principiante' : 
+                     userProfile.assessment.knowledge === 'good' ? 'Intermedio' : 'Autónomo'}
+                  </p>
+                </div>
+                <div className="bg-background/40 p-3 rounded-2xl border border-outline-variant/5">
+                  <p className="text-[7px] font-black uppercase text-outline tracking-widest leading-none">Meta Semanal</p>
+                  <p className="font-headline font-black uppercase italic text-xs mt-1.5">
+                    {userProfile.assessment.targetFrequency}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-background/40 p-4 rounded-2xl border border-outline-variant/5 h-full flex flex-col justify-between">
+                <div>
+                  <p className="text-[8px] font-black uppercase text-outline tracking-widest mb-3">Condiciones de Salud</p>
+                  <div className="flex flex-wrap gap-2">
+                    {userProfile.assessment.conditions.map(c => (
+                      <span key={c} className="px-3 py-1 rounded-full bg-surface-container-highest text-[8px] font-black uppercase tracking-tight text-on-surface-variant border border-outline-variant/10">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-between items-end mt-4 pt-4 border-t border-outline-variant/5">
+                  <div className="text-center">
+                    <p className="text-[7px] font-black uppercase text-outline leading-none">Peso Inicial</p>
+                    <p className="font-headline font-black text-xl italic">{userProfile.assessment.weight || '--'}<span className="text-[8px] ml-1">kg</span></p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[7px] font-black uppercase text-outline leading-none">Altura</p>
+                    <p className="font-headline font-black text-xl italic">{userProfile.assessment.height || '--'}<span className="text-[8px] ml-1">cm</span></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Stats Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/5 shadow-xl">
@@ -151,9 +237,16 @@ export const Progress: React.FC<ProgressProps> = ({ user, logs, onAdd, onBack })
             <span className="font-headline text-4xl font-black italic">{latestLog?.weight || '--'}</span>
             <span className="text-xs font-bold text-on-surface-variant">KG</span>
           </div>
-          <p className={`text-[10px] font-bold mt-2 ${weightDiff <= 0 ? 'text-secondary' : 'text-error'}`}>
-            {weightDiff > 0 ? '+' : ''}{weightDiff.toFixed(1)} kg vs anterior
-          </p>
+          <div className={`flex flex-col gap-1 mt-2`}>
+            <p className={`text-[10px] font-bold ${weightDiff <= 0 ? 'text-secondary' : 'text-error'}`}>
+              {weightDiff >= 0 ? '+' : ''}{weightDiff.toFixed(1)} kg s/ anterior
+            </p>
+            {totalWeightDiff !== 0 && (
+              <p className={`text-[10px] font-black uppercase tracking-widest ${totalWeightDiff <= 0 ? 'text-secondary' : 'text-error'}`}>
+                {totalWeightDiff >= 0 ? '+' : ''}{totalWeightDiff.toFixed(1)} kg total
+              </p>
+            )}
+          </div>
         </div>
         <div className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/5 shadow-xl">
           <p className="text-[10px] font-black text-outline uppercase tracking-[0.2em] mb-2">Cintura</p>

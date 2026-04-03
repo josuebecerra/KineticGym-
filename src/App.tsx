@@ -12,7 +12,9 @@ import { TrainerDashboard } from './components/TrainerDashboard';
 import { Leaderboard } from './components/Leaderboard';
 import { GymInfo } from './components/GymInfo';
 import { Hub } from './components/Hub';
+import { RoutineManager } from './components/RoutineManager';
 import { Login } from './components/Login';
+import { Assessment } from './components/Assessment';
 import { EXERCISES } from './constants';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -29,6 +31,7 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [gymInfo, setGymInfo] = useState<any>(null);
   const [preSelectedRoutine, setPreSelectedRoutine] = useState<Routine | null>(null);
+  const [isEditingAssessment, setIsEditingAssessment] = useState(false);
 
   const [workoutState, setWorkoutState] = useState<WorkoutState>({
     isActive: false,
@@ -156,6 +159,20 @@ export default function App() {
     return <Login />;
   }
 
+  // Intercept if assessment is missing
+  if (userProfile && !userProfile.assessment) {
+    return (
+      <Assessment 
+        uid={user.uid} 
+        userName={userProfile.displayName} 
+        onComplete={() => {
+          // The real-time listener will update userProfile anyway, 
+          // but we can force it if needed.
+        }} 
+      />
+    );
+  }
+
   const handleAddSession = async (session: WorkoutSession) => {
     // Optimistic Update
     setHistory([session, ...history]);
@@ -208,6 +225,7 @@ export default function App() {
           onNavigate={setActiveScreen}
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
+          gymInfo={gymInfo}
         />
       );
       case 'entrenar': return (
@@ -230,8 +248,10 @@ export default function App() {
       case 'progreso': return (
         <Progress 
           user={user}
+          userProfile={userProfile!}
           logs={progress} 
           onAdd={handleAddProgressLog} 
+          onEditAssessment={() => setIsEditingAssessment(true)}
           onBack={() => setActiveScreen('explorar')} 
         />
       );
@@ -243,6 +263,7 @@ export default function App() {
           onNavigate={setActiveScreen}
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
+          gymInfo={gymInfo}
         />
       );
       case 'entrenador': return <TrainerDashboard onBack={() => setActiveScreen('inicio')} currentRole={userProfile?.role} />;
@@ -278,7 +299,8 @@ export default function App() {
           );
         }
         return <GymInfo info={gymInfo} userProfile={userProfile} onBack={() => setActiveScreen('explorar')} />;
-      case 'explorar': return <Hub onNavigate={setActiveScreen} />;
+      case 'rutinas': return <RoutineManager onBack={() => setActiveScreen('explorar')} />;
+      case 'explorar': return <Hub onNavigate={setActiveScreen} userProfile={userProfile} />;
       default: return (
         <Home 
           sessions={history} 
@@ -287,6 +309,7 @@ export default function App() {
           onNavigate={setActiveScreen}
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
+          gymInfo={gymInfo}
         />
       );
     }
@@ -301,6 +324,17 @@ export default function App() {
   return (
     <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} userProfile={userProfile}>
       {renderScreen()}
+
+      {/* Progress Overlays (Modals for Editing) */}
+      {isEditingAssessment && userProfile?.assessment && (
+        <Assessment 
+          uid={user!.uid} 
+          userName={userProfile.displayName} 
+          initialData={userProfile.assessment}
+          onClose={() => setIsEditingAssessment(false)}
+          onComplete={() => setIsEditingAssessment(false)}
+        />
+      )}
 
       {/* Floating Active Workout Widget */}
       {workoutState.isActive && activeScreen !== 'entrenar' && (

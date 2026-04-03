@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile, Routine } from '../types';
 import { getAllUsers, assignRoutineToUser } from '../services/db';
-import { ROUTINES } from '../constants';
+import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
 
 interface TrainerDashboardProps {
   onBack: () => void;
@@ -143,23 +143,36 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             </div>
           </div>
 
-          <h3 className="text-[10px] font-black tracking-[0.3em] uppercase ml-2 text-on-surface-variant">Catálogo de Rutinas</h3>
           <div className="space-y-4">
             {ROUTINES.map(routine => (
-              <div key={routine.id} className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/5">
+              <div key={routine.id} className="bg-surface-container-high rounded-[32px] p-6 border border-outline-variant/10 shadow-sm">
                 <div className="flex justify-between items-start mb-4 gap-4">
                   <div className="flex-1">
-                     <h3 className="font-headline text-2xl font-black uppercase tracking-tight italic">{routine.name}</h3>
-                     <p className="text-[10px] font-bold text-outline uppercase tracking-widest mt-1">{routine.level} • {routine.category}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
+                        {routine.level}
+                      </span>
+                    </div>
+                    <h3 className={`font-headline text-2xl font-black uppercase tracking-tight italic leading-none mb-2 ${getTitleColor(routine.level)}`}>
+                      {routine.name}
+                    </h3>
+                    <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-1">{routine.description}</p>
                   </div>
                   <button 
                     onClick={() => handleAssign(routine)}
-                    className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-transform shrink-0"
+                    className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-all shrink-0 shadow-lg shadow-primary-container/20"
                   >
                     Asignar
                   </button>
                 </div>
-                <p className="text-sm text-on-surface-variant leading-relaxed line-clamp-2">{routine.description}</p>
+                <div className="flex items-center gap-4 text-outline text-[9px] font-black uppercase tracking-[0.2em] pt-4 border-t border-outline-variant/5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> {routine.exercisesCount} Ejercicios
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm opacity-50">category</span> {routine.category}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

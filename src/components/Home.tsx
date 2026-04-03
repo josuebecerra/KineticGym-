@@ -1,13 +1,14 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Screen, WorkoutSession, Exercise, Routine, ProgressLog } from '../types';
-import { ROUTINES } from '../constants';
+import { Screen, WorkoutSession, Exercise, Routine, ProgressLog, GymInfo } from '../types';
+import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
 
 interface HomeProps {
   sessions: WorkoutSession[];
   progress: ProgressLog[];
   exercises: Exercise[];
   assignedRoutines?: Routine[];
+  gymInfo: GymInfo | null;
   onNavigate: (screen: Screen) => void;
   onStartRoutine: (routine: Routine) => void;
 }
@@ -17,6 +18,7 @@ export const Home: React.FC<HomeProps> = ({
   progress, 
   exercises, 
   assignedRoutines = [],
+  gymInfo,
   onNavigate, 
   onStartRoutine 
 }) => {
@@ -41,6 +43,11 @@ export const Home: React.FC<HomeProps> = ({
   // 4. Latest Progress
   const latestProgress = progress[0];
 
+  // 5. Latest Gym News
+  const latestNews = gymInfo?.news && gymInfo.news.length > 0 
+    ? [...gymInfo.news].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+    : null;
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.98 }}
@@ -50,8 +57,58 @@ export const Home: React.FC<HomeProps> = ({
       {/* Welcome */}
       <section className="space-y-1">
         <p className="text-secondary font-headline font-black text-[10px] uppercase tracking-[0.2em]">SISTEMA KINETIC v1.0</p>
-        <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none">BIENVENIDO, <span className="text-outline">GUERRERO</span></h1>
+        <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none">BIENVENIDO, <span className="text-white">GUERRERO</span></h1>
       </section>
+
+      {/* Latest News Highlight */}
+      {latestNews && (
+        <motion.section 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          onClick={() => onNavigate('info')}
+          className="bg-surface-container-high rounded-[32px] p-6 border-2 border-secondary/20 shadow-2xl relative overflow-hidden group cursor-pointer active:scale-[0.98] transition-all"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
+          
+          <div className="flex items-start gap-5 relative z-10">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-colors ${
+              latestNews.type === 'alert' ? 'bg-error/10 border-error/20 text-error' : 
+              latestNews.type === 'promo' ? 'bg-secondary/10 border-secondary/20 text-secondary' : 
+              'bg-primary-container/10 border-primary-container/20 text-primary-container'
+            }`}>
+              <span className="material-symbols-outlined font-black">
+                {latestNews.type === 'alert' ? 'warning' : latestNews.type === 'promo' ? 'campaign' : 'info'}
+              </span>
+            </div>
+            
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Última Noticia</span>
+                <span className="w-1 h-1 rounded-full bg-outline-variant/30" />
+                <span className="text-[8px] font-bold text-outline uppercase">
+                  {(() => {
+                    const d = latestNews.date;
+                    if (!d) return 'Hoy';
+                    // Handle Firestore Timestamp
+                    if (typeof d === 'object' && 'toDate' in d) return (d as any).toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                    // Handle ISO string or valid date string
+                    const parsed = new Date(d);
+                    if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                    // Fallback for legacy strings
+                    return d;
+                  })()}
+                </span>
+              </div>
+              <h2 className="font-headline text-xl font-black uppercase italic tracking-tight leading-tight mb-2 truncate">
+                {latestNews.title}
+              </h2>
+              <p className="text-xs text-on-surface-variant font-medium line-clamp-2 leading-relaxed opacity-80">
+                {latestNews.content}
+              </p>
+            </div>
+          </div>
+        </motion.section>
+      )}
 
       {/* Bento Grid */}
       <div className="grid grid-cols-2 gap-4">
@@ -184,21 +241,35 @@ export const Home: React.FC<HomeProps> = ({
           </div>
           <div className="space-y-4">
             {assignedRoutines.map((routine, i) => (
-              <div key={`${routine.id}-${i}`} className="bg-surface-container-high rounded-[32px] p-6 shadow-xl border border-secondary/20 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 shrink-0 rounded-bl-full -mr-16 -mt-16 group-hover:scale-110 transition-transform"></div>
+              <div key={`${routine.id}-${i}`} className="bg-surface-container-high rounded-[32px] p-6 shadow-xl border border-outline-variant/5 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 shrink-0 rounded-bl-full -mr-16 -mt-16 group-hover:scale-110 transition-transform"></div>
                 <div className="flex flex-wrap justify-between items-start mb-4 relative z-10 gap-x-4 gap-y-2">
                   <div className="flex-1 min-w-[120px]">
-                    <h3 className="font-headline text-xl font-black uppercase tracking-tight italic leading-tight">{routine.name}</h3>
-                    <p className="text-[10px] font-bold text-outline uppercase tracking-widest mt-1">{routine.level} • {routine.category}</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
+                        {routine.level}
+                      </span>
+                    </div>
+                    <h3 className={`font-headline text-2xl font-black uppercase tracking-tight italic leading-none mb-2 ${getTitleColor(routine.level)}`}>
+                      {routine.name}
+                    </h3>
+                    <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-1">{routine.description}</p>
                   </div>
                   <button 
                     onClick={() => onStartRoutine(routine)}
-                    className="bg-secondary text-background hover:bg-white text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-transform shrink-0"
+                    className="bg-secondary text-background hover:bg-white text-[10px] uppercase tracking-widest font-black px-6 py-3 rounded-full hover:scale-105 active:scale-[0.98] transition-all shrink-0 shadow-lg shadow-secondary/20"
                   >
                     Iniciar
                   </button>
                 </div>
-                <p className="text-sm text-on-surface-variant leading-relaxed line-clamp-2 relative z-10">{routine.description}</p>
+                <div className="flex items-center gap-4 text-outline text-[9px] font-black uppercase tracking-[0.2em] relative z-10 pt-4 border-t border-outline-variant/5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> {routine.exercisesCount} Ejercicios
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm opacity-50">category</span> {routine.category}
+                  </span>
+                </div>
               </div>
             ))}
           </div>

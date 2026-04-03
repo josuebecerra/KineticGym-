@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ROUTINES, EXERCISES } from '../constants';
+import { ROUTINES, EXERCISES, getLevelColor, getTitleColor } from '../constants';
 import { Routine, Exercise, WorkoutSession, Set, ActiveExercise, WorkoutState, RestState, Screen } from '../types';
 
 type WorkoutView = 'selection' | 'active' | 'create' | 'preview';
@@ -264,27 +264,39 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                   setSelectedRoutine(routine);
                   setView('preview');
                 }}
-                className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/10 hover:bg-surface-container-high transition-all cursor-pointer group active:scale-[0.98]"
+                className="bg-surface-container-low p-6 rounded-[32px] border border-outline-variant/10 hover:bg-surface-container-high transition-all cursor-pointer group active:scale-[0.98] shadow-sm hover:shadow-xl"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="font-headline font-bold text-lg leading-tight">{routine.name}</h3>
-                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-1">{routine.description}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)} shadow-sm shadow-black/10`}>
+                        {routine.level}
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-outline opacity-40">
+                        {routine.category}
+                      </span>
+                    </div>
+                    <h3 className={`font-headline text-2xl font-black uppercase italic tracking-tighter leading-none mb-3 ${getTitleColor(routine.level)} transition-colors`}>
+                      {routine.name}
+                    </h3>
+                    <p className="text-[11px] font-bold text-outline-variant uppercase tracking-wider leading-relaxed max-w-lg opacity-80 line-clamp-1">
+                      {routine.description}
+                    </p>
                   </div>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${routine.level === 'Avanzado' ? 'bg-secondary/20 text-secondary' : 'bg-primary-container/20 text-primary-container'}`}>
-                    {routine.level}
-                  </span>
+                  <div className="w-12 h-12 rounded-2xl bg-surface-container-highest/40 flex items-center justify-center text-outline group-hover:text-primary-container group-hover:bg-primary-container/10 transition-all shadow-inner">
+                    <span className="material-symbols-outlined text-2xl">play_arrow</span>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4 text-outline text-[10px] font-bold uppercase tracking-widest">
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">fitness_center</span> {routine.exercisesCount} Ejercicios
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">category</span> {routine.category}
-                    </span>
+
+                <div className="flex items-center gap-6 mt-4 pt-4 border-t border-outline-variant/5">
+                  <div className="flex items-center gap-2 text-outline text-[9px] font-black uppercase tracking-[0.2em]">
+                    <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> 
+                    {routine.exercisesCount} Movimientos
                   </div>
-                  <span className="material-symbols-outlined text-outline group-hover:text-primary-container transition-colors">play_circle</span>
+                  <div className="flex items-center gap-2 text-outline text-[9px] font-black uppercase tracking-[0.2em]">
+                    <span className="material-symbols-outlined text-sm opacity-50">timer</span> 
+                    ~45 MIN
+                  </div>
                 </div>
               </div>
             ))}

@@ -48,10 +48,15 @@ export const GymInfo: React.FC<GymInfoProps> = ({ info, userProfile, onBack }) =
 
   const handleUpdateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    await updateGymInfo({
-      schedules: editedSchedules
-    });
-    setIsEditingSchedule(false);
+    try {
+      await updateGymInfo({
+        schedules: editedSchedules
+      });
+      setIsEditingSchedule(false);
+    } catch (error) {
+      console.error("Error actualizando horario:", error);
+      alert("Error de permisos: No se pudo guardar el horario.");
+    }
   };
 
   const handleAddNews = async (e: React.FormEvent) => {
@@ -63,21 +68,31 @@ export const GymInfo: React.FC<GymInfoProps> = ({ info, userProfile, onBack }) =
       title: newNews.title,
       content: newNews.content,
       type: newNews.type as any,
-      date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      date: new Date().toISOString()
     };
 
-    await updateGymInfo({
-      news: [item, ...info.news]
-    });
-    
-    setNewNews({ title: '', content: '', type: 'info' });
-    setIsAddingNews(false);
+    try {
+      await updateGymInfo({
+        news: [item, ...info.news]
+      });
+      
+      setNewNews({ title: '', content: '', type: 'info' });
+      setIsAddingNews(false);
+    } catch (error) {
+      console.error("Error publicando noticia:", error);
+      alert("Error de permisos: No se pudo publicar la noticia. Revisa las reglas de Firestore.");
+    }
   };
 
   const handleDeleteNews = async (id: string) => {
-    await updateGymInfo({
-      news: info.news.filter(n => n.id !== id)
-    });
+    try {
+      await updateGymInfo({
+        news: info.news.filter(n => n.id !== id)
+      });
+    } catch (error) {
+      console.error("Error eliminando noticia:", error);
+      alert("Error de permisos: No se pudo eliminar la noticia.");
+    }
   };
 
   const getTypeColor = (type: string) => {
@@ -168,7 +183,19 @@ export const GymInfo: React.FC<GymInfoProps> = ({ info, userProfile, onBack }) =
                     {item.type}
                   </span>
                   <div className="flex gap-4">
-                    <span className="text-[9px] font-bold text-outline uppercase">{item.date}</span>
+                    <span className="text-[9px] font-bold text-outline uppercase">
+                      {(() => {
+                        const d = item.date;
+                        if (!d) return 'Hoy';
+                        // Handle Firestore Timestamp
+                        if (typeof d === 'object' && 'toDate' in d) return (d as any).toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                        // Handle ISO string or valid date string
+                        const parsed = new Date(d);
+                        if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                        // Fallback for legacy strings
+                        return d;
+                      })()}
+                    </span>
                     {isAdmin && (
                       <button 
                         onClick={() => setItemToDelete(item.id)}
@@ -193,134 +220,152 @@ export const GymInfo: React.FC<GymInfoProps> = ({ info, userProfile, onBack }) =
       </section>
 
       {/* Editing Schedules Modal */}
-      {isEditingSchedule && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <div 
-            onClick={() => setIsEditingSchedule(false)}
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-          />
-          <div 
-            className="relative w-full max-w-lg bg-surface-container-highest rounded-[40px] p-8 shadow-2xl border border-outline-variant/20 max-h-[90vh] overflow-y-auto"
-          >
-            <h2 className="font-headline font-black text-3xl uppercase italic mb-6">Gestionar Horarios</h2>
-            <form onSubmit={handleUpdateSchedule} className="space-y-4">
-              {editedSchedules.map((s, idx) => (
-                <div key={s.day} className="flex items-center gap-4 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
-                  <span className="w-24 font-headline font-bold text-[10px] uppercase tracking-widest text-outline">{s.day}</span>
-                  <div className="flex-1 flex gap-2">
-                    <input 
-                      type="text" 
-                      value={s.open}
-                      onChange={(e) => {
-                        const newScheds = [...editedSchedules];
-                        newScheds[idx].open = e.target.value;
-                        setEditedSchedules(newScheds);
-                      }}
-                      className="w-full bg-background rounded-xl px-3 py-2 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-xs text-center" 
-                      placeholder="05:00"
-                    />
-                    <span className="flex items-center text-[10px] font-black text-outline-variant">A</span>
-                    <input 
-                      type="text" 
-                      value={s.close}
-                      onChange={(e) => {
-                        const newScheds = [...editedSchedules];
-                        newScheds[idx].close = e.target.value;
-                        setEditedSchedules(newScheds);
-                      }}
-                      className="w-full bg-background rounded-xl px-3 py-2 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-xs text-center" 
-                      placeholder="22:00"
-                    />
+      <AnimatePresence>
+        {isEditingSchedule && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsEditingSchedule(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-lg bg-surface-container-highest rounded-[40px] p-8 shadow-2xl border border-outline-variant/20 max-h-[90vh] overflow-y-auto"
+            >
+              <h2 className="font-headline font-black text-3xl uppercase italic mb-6">Gestionar Horarios</h2>
+              <form onSubmit={handleUpdateSchedule} className="space-y-4">
+                {editedSchedules.map((s, idx) => (
+                  <div key={s.day} className="flex items-center gap-4 bg-surface-container-low p-4 rounded-2xl border border-outline-variant/5">
+                    <span className="w-24 font-headline font-bold text-[10px] uppercase tracking-widest text-outline">{s.day}</span>
+                    <div className="flex-1 flex gap-2">
+                      <input 
+                        type="text" 
+                        value={s.open}
+                        onChange={(e) => {
+                          const newScheds = [...editedSchedules];
+                          newScheds[idx].open = e.target.value;
+                          setEditedSchedules(newScheds);
+                        }}
+                        className="w-full bg-background rounded-xl px-3 py-2 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-xs text-center" 
+                        placeholder="05:00"
+                      />
+                      <span className="flex items-center text-[10px] font-black text-outline-variant">A</span>
+                      <input 
+                        type="text" 
+                        value={s.close}
+                        onChange={(e) => {
+                          const newScheds = [...editedSchedules];
+                          newScheds[idx].close = e.target.value;
+                          setEditedSchedules(newScheds);
+                        }}
+                        className="w-full bg-background rounded-xl px-3 py-2 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-xs text-center" 
+                        placeholder="22:00"
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
-              
-              <div className="flex gap-4 pt-4 sticky bottom-0 bg-surface-container-highest mt-4">
-                <button 
-                  type="button" 
-                  onClick={() => setIsEditingSchedule(false)}
-                  className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-outline bg-surface-container rounded-2xl hover:bg-surface-container-high"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit"
-                  className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-on-secondary bg-secondary rounded-2xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 active:translate-y-0 transition-all font-bold"
-                >
-                  Guardar Cambios
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Adding News Modal */}
-      {isAddingNews && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-          <div 
-            onClick={() => setIsAddingNews(false)}
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-          />
-          <div 
-            className="relative w-full max-w-md bg-surface-container-highest rounded-[40px] p-8 shadow-2xl border border-outline-variant/20"
-          >
-              <h2 className="font-headline font-black text-3xl uppercase italic mb-6">Nueva Noticia</h2>
-              <form onSubmit={handleAddNews} className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Título</label>
-                  <input 
-                    type="text" 
-                    value={newNews.title}
-                    onChange={(e) => setNewNews({...newNews, title: e.target.value})}
-                    className="w-full bg-surface-container-low rounded-2xl px-4 py-3 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-sm" 
-                    placeholder="Ej. Nuevo horario nocturno"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Categoría</label>
-                  <div className="flex gap-2">
-                    {['info', 'promo', 'alert', 'event'].map(type => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setNewNews({...newNews, type: type as any})}
-                        className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${newNews.type === type ? getTypeColor(type) : 'bg-surface-container-low text-outline'}`}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Contenido</label>
-                  <textarea 
-                    value={newNews.content}
-                    onChange={(e) => setNewNews({...newNews, content: e.target.value})}
-                    rows={4}
-                    className="w-full bg-surface-container-low rounded-2xl px-4 py-3 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-body text-sm" 
-                    placeholder="Escribe el mensaje para la comunidad..."
-                  />
-                </div>
-                <div className="flex gap-4 pt-2">
+                ))}
+                
+                <div className="flex gap-4 pt-4 sticky bottom-0 bg-surface-container-highest mt-4">
                   <button 
                     type="button" 
-                    onClick={() => setIsAddingNews(false)}
-                    className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-outline bg-surface-container rounded-2xl hover:bg-surface-container-high"
+                    onClick={() => setIsEditingSchedule(false)}
+                    className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-outline bg-surface-container rounded-2xl hover:bg-surface-container-high transition-colors"
                   >
                     Cancelar
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-on-secondary bg-secondary rounded-2xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+                    className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-on-secondary bg-secondary rounded-2xl shadow-lg shadow-secondary/20 hover:brightness-110 active:scale-[0.98] transition-all font-bold"
                   >
-                    Publicar
+                    Guardar Cambios
                   </button>
                 </div>
               </form>
-            </div>
+            </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* Adding News Modal */}
+      <AnimatePresence>
+        {isAddingNews && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 text-on-surface">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddingNews(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-md bg-surface-container-highest rounded-[40px] p-8 shadow-2xl border border-outline-variant/20"
+            >
+                <h2 className="font-headline font-black text-3xl uppercase italic mb-6">Nueva Noticia</h2>
+                <form onSubmit={handleAddNews} className="space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Título</label>
+                    <input 
+                      type="text" 
+                      value={newNews.title}
+                      onChange={(e) => setNewNews({...newNews, title: e.target.value})}
+                      className="w-full bg-surface-container-low rounded-2xl px-4 py-3 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-headline font-bold text-sm" 
+                      placeholder="Ej. Nuevo horario nocturno"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Categoría</label>
+                    <div className="flex gap-2">
+                      {['info', 'promo', 'alert', 'event'].map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setNewNews({...newNews, type: type as any})}
+                          className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${newNews.type === type ? getTypeColor(type) : 'bg-surface-container-low text-outline'}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-outline block mb-2">Contenido</label>
+                    <textarea 
+                      value={newNews.content}
+                      onChange={(e) => setNewNews({...newNews, content: e.target.value})}
+                      rows={4}
+                      className="w-full bg-surface-container-low rounded-2xl px-4 py-3 border border-outline-variant/10 text-on-surface focus:border-secondary outline-none transition-colors font-body text-sm" 
+                      placeholder="Escribe el mensaje para la comunidad..."
+                    />
+                  </div>
+                  <div className="flex gap-4 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsAddingNews(false)}
+                      className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-outline bg-surface-container rounded-2xl hover:bg-surface-container-high transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 py-4 font-headline font-black text-[10px] uppercase tracking-widest text-on-secondary bg-secondary rounded-2xl shadow-lg shadow-secondary/20 hover:brightness-110 active:scale-[0.98] transition-all font-bold"
+                    >
+                      Publicar
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

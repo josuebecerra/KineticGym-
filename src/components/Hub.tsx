@@ -1,12 +1,15 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Screen } from '../types';
+import { Screen, UserProfile } from '../types';
 
 interface HubProps {
   onNavigate: (screen: Screen) => void;
+  userProfile?: UserProfile | null;
 }
 
-export const Hub: React.FC<HubProps> = ({ onNavigate }) => {
+export const Hub: React.FC<HubProps> = ({ onNavigate, userProfile }) => {
+  const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'trainer';
+
   const categories = [
     {
       id: 'ranking' as Screen,
@@ -45,6 +48,19 @@ export const Hub: React.FC<HubProps> = ({ onNavigate }) => {
       description: 'Analiza tu evolución física y métricas.'
     }
   ];
+
+  // Add Admin/Trainer only section
+  if (isStaff) {
+    categories.push({
+      id: 'rutinas' as Screen,
+      title: 'Gestión de Rutinas',
+      subtitle: 'Panel de Staff',
+      icon: 'admin_panel_settings',
+      color: 'text-white',
+      bg: 'secondary-gradient shadow-lg shadow-secondary/20 border-secondary/50',
+      description: 'Panel de control maestro para entrenamientos Kinetic.'
+    });
+  }
 
   return (
     <motion.div 

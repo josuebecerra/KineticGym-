@@ -1,4 +1,4 @@
-export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso' | 'ajustes' | 'entrenador' | 'ranking' | 'info' | 'explorar';
+export type Screen = 'login' | 'inicio' | 'entrenar' | 'historial' | 'descanso' | 'ejercicios' | 'progreso' | 'ajustes' | 'entrenador' | 'ranking' | 'info' | 'explorar' | 'rutinas';
 
 export interface GymSchedule {
   day: string;
@@ -19,6 +19,17 @@ export interface GymInfo {
   news: NewsItem[];
 }
 
+export interface AssessmentData {
+  goal: 'weight_loss' | 'fitness' | 'muscle_gain';
+  history4Months: 'none' | '1x' | '2-3x' | '4x_plus';
+  knowledge: 'first_time' | 'little' | 'good' | 'autonomous';
+  targetFrequency: '1x' | '2x' | '3x_plus';
+  weight?: number;
+  height?: number;
+  conditions: string[];
+  completedAt: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -31,6 +42,7 @@ export interface UserProfile {
   history: WorkoutSession[];
   progress: ProgressLog[];
   assignedRoutines: Routine[];
+  assessment?: AssessmentData;
 }
 
 export interface Routine {
@@ -38,9 +50,13 @@ export interface Routine {
   name: string;
   description: string;
   exercisesCount: number;
-  level: 'Básico' | 'Intermedio' | 'Avanzado';
+  level: 'Principiante' | 'Intermedio' | 'Avanzado';
   category: string;
   exerciseIds?: string[];
+  defaultExercises?: {
+    exerciseId: string;
+    sets: { reps: number; weight: number }[];
+  }[];
 }
 
 export interface Exercise {

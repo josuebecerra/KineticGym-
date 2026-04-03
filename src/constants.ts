@@ -3,48 +3,112 @@ import { Exercise, WorkoutSession, Routine, ProgressLog } from "./types";
 export const ROUTINES: Routine[] = [
   {
     id: 'r1',
-    name: 'Push Day A',
-    description: 'Enfoque en pecho, hombros y tríceps. Fuerza máxima.',
-    exercisesCount: 5,
-    level: 'Avanzado',
-    category: 'Empuje',
-    exerciseIds: ['e1', 'e2', 'e3', 'e11', 'e15']
+    name: 'Full Body Iniciación',
+    description: 'Rutina completa para despertar el cuerpo. Enfoque en técnica y adaptación neural.',
+    exercisesCount: 4,
+    level: 'Principiante',
+    category: 'FULL BODY',
+    defaultExercises: [
+      { exerciseId: 'e7', sets: [{ reps: 12, weight: 10 }, { reps: 12, weight: 10 }, { reps: 12, weight: 10 }] }, // Sentadilla
+      { exerciseId: 'e1', sets: [{ reps: 10, weight: 20 }, { reps: 10, weight: 20 }, { reps: 10, weight: 20 }] }, // Bench Press
+      { exerciseId: 'e6', sets: [{ reps: 12, weight: 30 }, { reps: 12, weight: 30 }, { reps: 12, weight: 30 }] }, // Jalón
+      { exerciseId: 'e17', sets: [{ reps: 30, weight: 0 }, { reps: 30, weight: 0 }] } // Plank
+    ]
   },
   {
     id: 'r2',
-    name: 'Pull Day B',
-    description: 'Enfoque en espalda y bíceps. Hipertrofia controlada.',
-    exercisesCount: 4,
+    name: 'Push Day Hipertrofia',
+    description: 'Enfoque en pecho, hombros y tríceps. Volumen moderado para construir base muscular.',
+    exercisesCount: 5,
     level: 'Intermedio',
-    category: 'Tracción',
-    exerciseIds: ['e4', 'e5', 'e6', 'e14']
+    category: 'EMPUJE',
+    defaultExercises: [
+      { exerciseId: 'e1', sets: [{ reps: 10, weight: 40 }, { reps: 10, weight: 40 }, { reps: 10, weight: 40 }] }, // Bench Press
+      { exerciseId: 'e11', sets: [{ reps: 12, weight: 12 }, { reps: 12, weight: 12 }, { reps: 12, weight: 12 }] }, // Militar
+      { exerciseId: 'e3', sets: [{ reps: 12, weight: 18 }, { reps: 12, weight: 18 }, { reps: 12, weight: 18 }] }, // Inclinado
+      { exerciseId: 'e12', sets: [{ reps: 15, weight: 10 }, { reps: 15, weight: 10 }] }, // Laterales
+      { exerciseId: 'e15', sets: [{ reps: 12, weight: 20 }, { reps: 12, weight: 20 }, { reps: 12, weight: 20 }] } // Tríceps
+    ]
   },
   {
     id: 'r3',
-    name: 'Leg Day Power',
-    description: 'Sentadillas y peso muerto rumano. Fuerza explosiva.',
-    exercisesCount: 4,
+    name: 'Upper Body Power',
+    description: 'Entrenamiento de torso híbrido (fuerza + hipertrofia). Para atletas con experiencia.',
+    exercisesCount: 6,
     level: 'Avanzado',
-    category: 'Piernas',
-    exerciseIds: ['e7', 'e8', 'e9', 'e10']
+    category: 'TORSO',
+    defaultExercises: [
+      { exerciseId: 'e1', sets: [{ reps: 5, weight: 80 }, { reps: 5, weight: 80 }, { reps: 5, weight: 80 }, { reps: 5, weight: 80 }] }, // Bench Press Heavy
+      { exerciseId: 'e4', sets: [{ reps: 8, weight: 10 }, { reps: 8, weight: 10 }, { reps: 8, weight: 10 }] }, // Dominadas Lastradas
+      { exerciseId: 'e11', sets: [{ reps: 6, weight: 50 }, { reps: 6, weight: 50 }, { reps: 6, weight: 50 }] }, // Militar Heavy
+      { exerciseId: 'e5', sets: [{ reps: 10, weight: 32 }, { reps: 10, weight: 32 }, { reps: 10, weight: 32 }] }, // Remo Unilateral
+      { exerciseId: 'e14', sets: [{ reps: 12, weight: 35 }, { reps: 12, weight: 35 }] }, // Curl Barra Z
+      { exerciseId: 'e15', sets: [{ reps: 15, weight: 25 }, { reps: 15, weight: 25 }] } // Tríceps
+    ]
   },
   {
     id: 'r4',
-    name: 'Torso Dominante',
-    description: 'Estructura clásica de torso para ganar densidad.',
-    exercisesCount: 4,
-    level: 'Intermedio',
-    category: 'Torso',
-    exerciseIds: ['e1', 'e4', 'e11', 'e5']
+    name: 'Lower Body Power',
+    description: 'Enfoque en fuerza máxima de piernas. Sentadillas pesadas y control postural.',
+    exercisesCount: 3,
+    level: 'Avanzado',
+    category: 'PIERNAS',
+    defaultExercises: [
+      { exerciseId: 'e7', sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 100 }, { reps: 5, weight: 100 }, { reps: 5, weight: 100 }] },
+      { exerciseId: 'e8', sets: [{ reps: 8, weight: 60 }, { reps: 8, weight: 60 }, { reps: 8, weight: 60 }] },
+      { exerciseId: 'e10', sets: [{ reps: 15, weight: 40 }, { reps: 15, weight: 40 }, { reps: 15, weight: 40 }] }
+    ]
   },
   {
     id: 'r5',
-    name: 'Full Body Kinetic',
-    description: 'Cuerpo completo para máxima quema calórica y fuerza.',
+    name: 'Pull Day Control',
+    description: 'Enfoque en espalda y bíceps. Control de la fase negativa (excéntrica).',
     exercisesCount: 4,
-    level: 'Básico',
-    category: 'Full Body',
-    exerciseIds: ['e7', 'e1', 'e4', 'e16']
+    level: 'Intermedio',
+    category: 'TRACCIÓN',
+    defaultExercises: [
+      { exerciseId: 'e4', sets: [{ reps: 10, weight: 0 }, { reps: 10, weight: 0 }, { reps: 10, weight: 0 }] },
+      { exerciseId: 'e5', sets: [{ reps: 12, weight: 24 }, { reps: 12, weight: 24 }, { reps: 12, weight: 24 }] },
+      { exerciseId: 'e6', sets: [{ reps: 12, weight: 45 }] },
+      { exerciseId: 'e14', sets: [{ reps: 12, weight: 30 }] }
+    ]
+  },
+  {
+    id: 'r6',
+    name: 'Core & Stability',
+    description: 'Fortalecimiento de la zona media y equilibrio funcional. Ideal para recuperación activa.',
+    exercisesCount: 2,
+    level: 'Principiante',
+    category: 'FULL BODY',
+    defaultExercises: [
+      { exerciseId: 'e16', sets: [{ reps: 20, weight: 0 }, { reps: 20, weight: 0 }, { reps: 20, weight: 0 }] },
+      { exerciseId: 'e17', sets: [{ reps: 45, weight: 0 }, { reps: 45, weight: 0 }, { reps: 45, weight: 0 }] }
+    ]
+  },
+  {
+    id: 'r7',
+    name: 'Glute Focus Pro',
+    description: 'Especializado en glúteos e isquiosurales. Máxima tensión mecánica.',
+    exercisesCount: 3,
+    level: 'Intermedio',
+    category: 'PIERNAS',
+    defaultExercises: [
+      { exerciseId: 'e7', sets: [{ reps: 15, weight: 40 }, { reps: 15, weight: 40 }, { reps: 15, weight: 40 }] },
+      { exerciseId: 'e8', sets: [{ reps: 12, weight: 50 }, { reps: 12, weight: 50 }, { reps: 12, weight: 50 }] },
+      { exerciseId: 'e9', sets: [{ reps: 20, weight: 60 }, { reps: 20, weight: 60 }, { reps: 20, weight: 60 }] }
+    ]
+  },
+  {
+    id: 'r8',
+    name: 'Arm Blaster',
+    description: 'Entrenamiento de aislamiento para bíceps y tríceps. Bombbeo extremo.',
+    exercisesCount: 2,
+    level: 'Avanzado',
+    category: 'BRAZOS',
+    defaultExercises: [
+      { exerciseId: 'e14', sets: [{ reps: 12, weight: 40 }, { reps: 12, weight: 40 }, { reps: 12, weight: 40 }, { reps: 12, weight: 40 }] },
+      { exerciseId: 'e15', sets: [{ reps: 12, weight: 30 }, { reps: 12, weight: 30 }, { reps: 12, weight: 30 }, { reps: 12, weight: 30 }] }
+    ]
   }
 ];
 
@@ -353,3 +417,19 @@ export const INITIAL_PROGRESS: ProgressLog[] = [
     photos: []
   }
 ];
+
+// UI STYLING UTILITIES
+export const getLevelColor = (level: string) => {
+  const l = level?.toLowerCase() || '';
+  if (l.includes('principiante')) return 'bg-success text-on-primary-container';
+  if (l.includes('intermedio')) return 'bg-secondary text-white';
+  if (l.includes('avanzado') || l.includes('avanzada')) return 'bg-error text-white';
+  return 'bg-surface-container-highest text-outline';
+};
+
+export const getTitleColor = (level: string) => {
+  const l = level?.toLowerCase() || '';
+  if (l.includes('intermedio')) return 'text-secondary';
+  if (l.includes('avanzado') || l.includes('avanzada')) return 'text-error';
+  return 'text-on-surface';
+};

@@ -24,6 +24,10 @@
   --color-on-surface-variant: #adaaaa;
   --color-outline: #767575;
   --color-outline-variant: #484847;
+  
+  --color-error: #ff4141;
+  --color-success: #ccff00;
+  --color-warning: #ffb841;
 }
 
 @layer base {
