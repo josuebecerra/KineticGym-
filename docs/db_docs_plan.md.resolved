@@ -1,0 +1,50 @@
+# Plan de Documentación: Base de Datos y Diagramas 📊
+
+Este plan detalla la adición de una sección de base de datos y diagramas visuales a la documentación del proyecto, respondiendo a la necesidad de entender cómo se estructuran los datos en Firebase.
+
+## Proposed Changes
+
+### 1. Documentación Técnica (Docs)
+
+#### [MODIFY] [ARCHITECTURE.md](file:///c:/Users/josue/Desktop/Nueva%20carpeta/GYM/kinetic/docs/ARCHITECTURE.md)
+*   Añadir la sección **"7. Modelo de Datos (Firestore)"**.
+*   Incluir un diagrama **Mermaid** que visualice las relaciones entre Usuarios, Rutinas, Sesiones y Progreso.
+*   Detallar el esquema de colecciones:
+    *   `users/{uid}`: Perfil completo y actividad.
+    *   `gym_configs/general`: Configuración global del gimnasio.
+
+### 2. Visualización UI
+
+#### [NEW] [database_diagram.md](file:///c:/Users/josue/.gemini/antigravity/brain/dbf9b6a3-0681-4b29-a37b-c31db4692bac/database_diagram.md)
+*   Crear un artefacto dedicado con el diagrama Mermaid para que el usuario pueda verlo directamente en la interfaz.
+
+## Diagram Structure (Preview)
+
+```mermaid
+erDiagram
+    USER ||--o{ WORKOUT_SESSION : "realiza"
+    USER ||--o{ PROGRESS_LOG : "registra"
+    USER ||--o{ ROUTINE : "tiene_asignada"
+    GYM_CONFIG ||--o{ NEWS_ITEM : "contiene"
+    GYM_CONFIG ||--o{ GYM_SCHEDULE : "define"
+
+    USER {
+        string uid
+        string role
+        object assessment
+        object settings
+    }
+
+    WORKOUT_SESSION {
+        string id
+        string date
+        float volume
+        array exercises
+    }
+```
+
+## Verification Plan
+
+### Manual Verification
+*   Confirmar que el diagrama refleja fielmente los interfaces definidos en `src/types.ts`.
+*   Verificar que las rutas de las colecciones coincidan con las llamadas en `src/services/db.ts`.

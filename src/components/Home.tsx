@@ -2,6 +2,8 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { Screen, WorkoutSession, Exercise, Routine, ProgressLog, GymInfo } from '../types';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
+import { formatKineticDate } from '../utils/date';
+import { DialogConfig } from './Dialog';
 
 interface HomeProps {
   sessions: WorkoutSession[];
@@ -11,6 +13,8 @@ interface HomeProps {
   gymInfo: GymInfo | null;
   onNavigate: (screen: Screen) => void;
   onStartRoutine: (routine: Routine) => void;
+  userProfile?: any;
+  onShowDialog?: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
 export const Home: React.FC<HomeProps> = ({ 
@@ -20,7 +24,9 @@ export const Home: React.FC<HomeProps> = ({
   assignedRoutines = [],
   gymInfo,
   onNavigate, 
-  onStartRoutine 
+  onStartRoutine,
+  userProfile,
+  onShowDialog
 }) => {
   // 1. Weekly Activity Calculation
   // Assuming target is 5 sessions per week.
@@ -48,6 +54,12 @@ export const Home: React.FC<HomeProps> = ({
     ? [...gymInfo.news].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
     : null;
 
+  // 6. Subscription Calculation
+  const subscription = userProfile?.subscription;
+  const daysRemaining = subscription ? Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null;
+  const totalDays = subscription ? Math.ceil((new Date(subscription.endDate).getTime() - new Date(subscription.startDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const progressPercentage = subscription ? Math.max(0, Math.min(100, 100 - (daysRemaining! / totalDays) * 100)) : 0;
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.98 }}
@@ -56,9 +68,62 @@ export const Home: React.FC<HomeProps> = ({
     >
       {/* Welcome */}
       <section className="space-y-1">
-        <p className="text-secondary font-headline font-black text-[10px] uppercase tracking-[0.2em]">SISTEMA KINETIC v1.0</p>
-        <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none">BIENVENIDO, <span className="text-white">GUERRERO</span></h1>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-secondary font-headline font-black text-[10px] uppercase tracking-[0.2em]">{userProfile?.role === 'admin' ? 'PANEL ADMINISTRATIVO' : 'SISTEMA KINETIC v1.0'}</p>
+            <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none text-white">
+              {userProfile?.role === 'admin' ? 'HOLA, ' : 'BIENVENIDO, '}
+              <span className="text-secondary">{userProfile?.displayName?.split(' ')[0] || 'GUERRERO'}</span>
+            </h1>
+          </div>
+          {userProfile?.role === 'trainee' && userProfile?.trainerId && (
+            <div className="bg-surface-container-high px-4 py-2 rounded-2xl border border-outline-variant/10 flex flex-col items-end">
+              <span className="text-[8px] font-black text-outline uppercase tracking-widest">Tu Coach</span>
+              <span className="text-[10px] font-black text-secondary uppercase tracking-tight italic">{userProfile.trainerName || 'Asignado'}</span>
+            </div>
+          )}
+        </div>
       </section>
+
+      {/* Membership Alert Banner */}
+      {userProfile?.role === 'trainee' && (daysRemaining === 0 || !subscription) && (
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          onClick={() => onNavigate('training')}
+          className="bg-error/10 border-2 border-error/30 rounded-[32px] p-6 flex items-center justify-between group cursor-pointer hover:bg-error/20 transition-all shadow-xl shadow-error/5"
+        >
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-error text-on-error flex items-center justify-center shadow-lg shadow-error/20">
+              <span className="material-symbols-outlined font-black">payments</span>
+            </div>
+            <div>
+              <h3 className="font-headline text-xl font-black text-white uppercase italic leading-none mb-1">Membresía Vencida</h3>
+              <p className="text-[10px] font-bold text-error uppercase tracking-widest">Renueva ahora para desbloquear tus rutinas</p>
+            </div>
+          </div>
+          <span className="material-symbols-outlined text-error group-hover:translate-x-1 transition-transform">arrow_forward</span>
+        </motion.div>
+      )}
+
+      {/* Membership Warning (Expiring Soon) */}
+      {userProfile?.role === 'trainee' && daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 3 && (
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-secondary/10 border-2 border-secondary/30 rounded-[32px] p-6 flex items-center justify-between group transition-all"
+        >
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-secondary text-black flex items-center justify-center shadow-lg shadow-secondary/20">
+              <span className="material-symbols-outlined font-black">notification_important</span>
+            </div>
+            <div>
+              <h3 className="font-headline text-xl font-black text-white uppercase italic leading-none mb-1">Vence Pronto</h3>
+              <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Tu plan expira en {daysRemaining} día{daysRemaining > 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Latest News Highlight */}
       {latestNews && (
@@ -66,7 +131,7 @@ export const Home: React.FC<HomeProps> = ({
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           onClick={() => onNavigate('info')}
-          className="bg-surface-container-high rounded-[32px] p-6 border-2 border-secondary/20 shadow-2xl relative overflow-hidden group cursor-pointer active:scale-[0.98] transition-all"
+          className="bg-surface-container-high rounded-[32px] p-6 border-2 border-secondary/20 shadow-2xl relative overflow-hidden group cursor-pointer active:scale-[0.98] transition-all mb-8"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
           
@@ -86,17 +151,7 @@ export const Home: React.FC<HomeProps> = ({
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Última Noticia</span>
                 <span className="w-1 h-1 rounded-full bg-outline-variant/30" />
                 <span className="text-[8px] font-bold text-outline uppercase">
-                  {(() => {
-                    const d = latestNews.date;
-                    if (!d) return 'Hoy';
-                    // Handle Firestore Timestamp
-                    if (typeof d === 'object' && 'toDate' in d) return (d as any).toDate().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-                    // Handle ISO string or valid date string
-                    const parsed = new Date(d);
-                    if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-                    // Fallback for legacy strings
-                    return d;
-                  })()}
+                  {formatKineticDate(latestNews.date)}
                 </span>
               </div>
               <h2 className="font-headline text-xl font-black uppercase italic tracking-tight leading-tight mb-2 truncate">
@@ -232,7 +287,7 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* Rutinas Asignadas */}
       {assignedRoutines.length > 0 && (
-        <section className="pt-4 mb-8">
+        <section className="pt-8 mb-8">
           <div className="flex justify-between items-end mb-6">
             <div>
               <h2 className="font-headline text-2xl font-black uppercase italic tracking-tight text-secondary">Tus Programas</h2>
@@ -277,7 +332,7 @@ export const Home: React.FC<HomeProps> = ({
       )}
 
       {/* Featured Workout */}
-      <section className="pt-4">
+      <section className="pt-8">
         <div 
           onClick={() => onStartRoutine(ROUTINES[0])}
           className="relative w-full aspect-[16/9] rounded-[40px] overflow-hidden shadow-2xl cursor-pointer group active:scale-[0.98] transition-all"

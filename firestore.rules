@@ -14,21 +14,37 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Solo el dueño o un miembro del staff puede leer perfiles
-      allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
-      
-      // Creación libre para el usuario mismo (usualmente al loguearse la primera vez no hay recurso aún)
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Helper para verificar si es el dueño
+      function isOwner() {
+        return request.auth.uid == userId;
+      }
 
-      // Para actualizar: si se intenta modificar "role", debe ser admin.
-      // De lo contrario, solo requiere ser el dueño de la cuenta o parte del staff.
+      // Solo el dueño o un miembro del staff puede leer perfiles
+      allow read: if request.auth != null && (isOwner() || isStaff());
+      
+      // Creación blindada: 
+      // 1. Debe ser el dueño (uid coincidente)
+      // 2. EL ROL INICIAL DEBE SER 'trainee' (SEGURIDAD CRÍTICA)
+      allow create: if request.auth != null && isOwner() && request.resource.data.role == 'trainee';
+
+      // Para actualizar: 
+      // 1. Admins tienen control total.
+      // 2. El dueño puede editar todo EXCEPTO su rol y su entrenador asignado.
+      // 3. El Entrenador ASIGNADO puede editar el perfil (ej. para asignar rutinas).
       allow update: if request.auth != null && (
         isAdmin() || 
         (
-          (request.auth.uid == userId || isStaff()) && 
-          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+          isOwner() && 
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'trainerId', 'trainerName']))
+        ) ||
+        (
+          isStaff() && 
+          resource.data.trainerId == request.auth.uid
         )
       );
+
+      // Solo Admins pueden borrar perfiles (Protección de Integridad)
+      allow delete: if request.auth != null && isAdmin();
     }
 
     match /gym_configs/{docId} {

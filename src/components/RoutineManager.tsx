@@ -2,15 +2,17 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Routine, Exercise } from '../types';
 import { ROUTINES, EXERCISES, getLevelColor, getTitleColor } from '../constants';
+import { DialogConfig } from './Dialog';
 
 interface RoutineManagerProps {
   onBack: () => void;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
 const MUSCLE_CATEGORIES = ['TODOS', 'PECHO', 'ESPALDA', 'PIERNAS', 'HOMBROS', 'BRAZOS', 'CORE'];
 const ROUTINE_CATEGORIES = ['FULL BODY', 'EMPUJE', 'TRACCIÓN', 'PIERNAS', 'TORSO', 'BRAZOS', 'CORE', 'GLÚTEOS'];
 
-export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack }) => {
+export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDialog }) => {
   const [localRoutines, setLocalRoutines] = useState<Routine[]>(ROUTINES);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -119,7 +121,12 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack }) => {
 
   const handleSaveRoutine = () => {
     if (!newRoutine.name) {
-      alert("Por favor ponle un nombre a la rutina.");
+      onShowDialog({
+        type: 'info',
+        title: 'FALTA EL NOMBRE',
+        message: 'No puedes guardar una rutina sin nombre. Ponle algo épico.',
+        confirmText: 'ENTENDIDO'
+      });
       return;
     }
 

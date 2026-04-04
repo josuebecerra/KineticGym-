@@ -6,6 +6,13 @@ export interface GymSchedule {
   close: string;
 }
 
+export interface MembershipPlan {
+  id: '1month' | '6months' | '1year';
+  name: string;
+  price: string;
+  description: string;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -17,6 +24,9 @@ export interface NewsItem {
 export interface GymInfo {
   schedules: GymSchedule[];
   news: NewsItem[];
+  membershipPlans?: MembershipPlan[];
+  sessionTimeoutMinutes?: number;
+  sessionWarningMinutes?: number;
 }
 
 export interface AssessmentData {
@@ -28,6 +38,13 @@ export interface AssessmentData {
   height?: number;
   conditions: string[];
   completedAt: string;
+}
+
+export interface SubscriptionData {
+  planId: '1month' | '6months' | '1year';
+  startDate: string;
+  endDate: string;
+  status: 'active' | 'expired' | 'canceled';
 }
 
 export interface UserProfile {
@@ -43,6 +60,15 @@ export interface UserProfile {
   progress: ProgressLog[];
   assignedRoutines: Routine[];
   assessment?: AssessmentData;
+  trainerId?: string;
+  trainerName?: string;
+  subscription?: SubscriptionData;
+  subscriptionHistory?: SubscriptionData[];
+  membershipRequest?: {
+    planId: '1month' | '6months' | '1year';
+    requestDate: string;
+    status: 'pending' | 'rejected';
+  };
 }
 
 export interface Routine {

@@ -1,0 +1,67 @@
+# Diagrama de Base de Datos y Estructura (Firestore) 📊
+
+Para entender cómo Kinetic guarda tu información, aquí tienes el plano técnico de la base de datos NoSQL de Firebase.
+
+## 1. Diagrama de Relaciones 🔥
+
+```mermaid
+erDiagram
+    USER ||--o{ WORKOUT_SESSION : "realiza"
+    USER ||--o{ PROGRESS_LOG : "registra"
+    USER ||--o{ ROUTINE : "tiene_asignada"
+    GYM_CONFIG ||--o{ NEWS_ITEM : "contiene"
+    GYM_CONFIG ||--o{ GYM_SCHEDULE : "define"
+
+    USER {
+        string uid PK "ID del usuario en Auth"
+        string role "admin | trainer | trainee"
+        object assessment "Datos de Evaluación Inicial"
+        object settings "Preferencias de sonido"
+        array history "Lista de WorkoutSession"
+        array progress "Lista de ProgressLog"
+        array assignedRoutines "Lista de Rutinas"
+    }
+
+    WORKOUT_SESSION {
+        string id PK
+        string name "Nombre de la rutina o Libre"
+        string date "ISO String"
+        string duration "Formato HH:MM:SS"
+        string volume "Peso total movido"
+        array exercises "Detalle de series y reps"
+    }
+
+    PROGRESS_LOG {
+        string id PK
+        string date "ISO String"
+        float weight "Peso corporal"
+        object measurements "Medidas físicas"
+        array photos "URLs de las fotos"
+    }
+
+    GYM_CONFIG {
+        string id PK "general"
+        array schedules "Días y horas de apertura"
+        array news "Lista de NewsItems"
+    }
+```
+
+---
+
+## 2. Detalle de Colecciones 📂
+
+| Colección | Documento | Propósito |
+| :--- | :--- | :--- |
+| **`users`** | `{uid}` | Almacena el perfil completo del usuario, su historial de entrenamiento y registros de progreso. Es un documento "grueso" para reducir lecturas. |
+| **`gym_configs`** | `general` | Almacena los horarios de apertura y las noticias del gimnasio que ven todos los socios. Solo accesible para administradores. |
+
+---
+
+## 3. Decisiones de Arquitectura de Datos 🧠
+
+*   **Sub-colecciones vs Arrays**: Hemos elegido guardar `history` y `progress` como **arrays dentro del documento del usuario** en lugar de sub-colecciones. Esto hace que la carga de la app sea instantánea (una sola lectura trae todo el perfil).
+*   **Optimización de Imagenes**: Las fotos de progreso se comprimen a **Base64** antes de guardarse para evitar el costo de Firebase Storage y mantener la privacidad dentro del documento del socio.
+*   **Seguridad**: Las `firestore.rules` prohíben que un socio vea los datos de otro, EXCEPTO que seas Admin para gestionar usuarios.
+
+> [!NOTE]
+> He añadido esta misma sección a tu archivo técnico [docs/ARCHITECTURE.md](file:///c:/Users/josue/Desktop/Nueva%20carpeta/GYM/kinetic/docs/ARCHITECTURE.md) en el proyecto.

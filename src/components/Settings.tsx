@@ -2,17 +2,26 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { uploadAvatarPhoto, updateUserProfile } from '../services/db';
+import { DialogConfig } from './Dialog';
 
 interface SettingsProps {
   profile: UserProfile;
   onBack: () => void;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ profile, onBack }) => {
+export const Settings: React.FC<SettingsProps> = ({ profile, onBack, onShowDialog }) => {
   const [displayName, setDisplayName] = useState(profile.displayName || '');
   const [soundEnabled, setSoundEnabled] = useState(profile.settings?.soundEnabled ?? true);
   const [isUploading, setIsUploading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const subscription = profile.subscription;
+  const daysRemaining = subscription ? Math.max(0, Math.ceil((new Date(subscription.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : null;
+  const totalDays = subscription ? Math.ceil((new Date(subscription.endDate).getTime() - new Date(subscription.startDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const elapsedDays = subscription ? Math.max(0, Math.ceil((new Date().getTime() - new Date(subscription.startDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
+  const progressPercentage = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -24,7 +33,12 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack }) => {
       await updateUserProfile(profile.uid, { avatarUrl: url });
     } catch (err) {
       console.error("Error subiendo avatar:", err);
-      alert("Hubo un error al subir la foto de perfil.");
+      onShowDialog({
+        type: 'error',
+        title: 'ERROR DE CARGA',
+        message: 'No pudimos subir tu foto en este momento. Revisa tu conexión a internet.',
+        confirmText: 'REINTENTAR'
+      });
     } finally {
       setIsUploading(false);
     }
@@ -36,10 +50,20 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack }) => {
         displayName,
         settings: { soundEnabled }
       });
-      alert('Ajustes guardados correctamente.');
+      onShowDialog({
+        type: 'success',
+        title: 'PERFIL ACTUALIZADO',
+        message: 'Tus ajustes han sido guardados con éxito. ¡Todo listo!',
+        confirmText: 'GENIAL'
+      });
     } catch (err) {
       console.error("Error guardando ajustes:", err);
-      alert("Error al guardar ajustes.");
+      onShowDialog({
+        type: 'error',
+        title: 'FALLO AL GUARDAR',
+        message: 'Hubo un problema de sincronización. Inténtalo de nuevo en unos segundos.',
+        confirmText: 'CERRAR'
+      });
     }
   };
 
@@ -108,6 +132,94 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack }) => {
             </div>
           </div>
         </div>
+
+        {/* Membership Details (Relocated from Home) */}
+        {profile.role === 'trainee' && subscription && (
+          <div className="mt-8 pt-8 border-t border-outline-variant/10 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black text-secondary uppercase tracking-[0.3em]">Estado de Membresía</h3>
+              <button 
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-[8px] font-black text-outline hover:text-white transition-colors uppercase tracking-widest flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">{showHistory ? 'visibility_off' : 'history'}</span>
+                {showHistory ? 'Ocultar Historial' : 'Ver Historial'}
+              </button>
+            </div>
+
+            <div className="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/5 shadow-inner">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h4 className="font-headline text-2xl font-black uppercase italic tracking-tight text-white mb-1">
+                    Plan {subscription.planId === '1month' ? 'Mensual' : subscription.planId === '6months' ? 'Semestral' : 'Anual'}
+                  </h4>
+                  <div className="flex gap-4">
+                    <div>
+                      <p className="text-[7px] font-black text-outline uppercase tracking-widest">Desde</p>
+                      <p className="text-[9px] font-bold text-on-surface uppercase">{new Date(subscription.startDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[7px] font-black text-outline uppercase tracking-widest">Hasta</p>
+                      <p className="text-[9px] font-bold text-on-surface uppercase">{new Date(subscription.endDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-headline text-3xl font-black text-primary-container italic leading-none">{daysRemaining}</p>
+                  <p className="text-[8px] font-black text-outline uppercase tracking-widest mt-1">Días Libres</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/10">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercentage}%` }}
+                    className={`h-full ${daysRemaining! <= 5 ? 'bg-error' : 'kinetic-gradient shadow-lg shadow-primary/20'}`}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button 
+                  onClick={() => {
+                    const msg = `¡Hola! Para renovar tu plan ${subscription.planId === '1month' ? 'mensual' : subscription.planId === '6months' ? 'semestral' : 'anual'}, acércate al mostrador de Kinetic o contacta a la administración directamente.`;
+                    onShowDialog({
+                      type: 'info',
+                      title: 'SOLICITAR RENOVACIÓN',
+                      message: msg,
+                      confirmText: 'ENTENDIDO'
+                    });
+                  }}
+                  className="w-full kinetic-gradient text-on-primary-container py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-[18px]">refresh</span> Renovar Membresía
+                </button>
+              </div>
+            </div>
+
+            {/* History List (Toggleable) */}
+            {showHistory && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3">
+                <p className="text-[9px] font-black text-outline uppercase tracking-[0.2em] ml-1">Registro de Pagos</p>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                  {(profile.subscriptionHistory || []).slice().reverse().map((sub, idx) => (
+                    <div key={idx} className="bg-surface-container-low border border-outline-variant/10 p-3 rounded-xl flex justify-between items-center opacity-60 hover:opacity-100 transition-opacity">
+                      <div>
+                        <p className="text-[8px] font-black text-on-surface uppercase tracking-tight">Plan {sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}</p>
+                        <p className="text-[7px] font-bold text-outline uppercase mt-0.5">{new Date(sub.startDate).toLocaleDateString()} - {new Date(sub.endDate).toLocaleDateString()}</p>
+                      </div>
+                      <span className="text-[7px] font-black text-outline-variant uppercase bg-surface-container-high px-2 py-1 rounded-full">Historial #{profile.subscriptionHistory!.length - idx}</span>
+                    </div>
+                  ))}
+                  {(!profile.subscriptionHistory || profile.subscriptionHistory.length === 0) && (
+                    <p className="text-[8px] font-black text-outline uppercase tracking-widest text-center py-4 italic">No hay registros previos</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </div>
+        )}
 
         <button 
           onClick={handleSave}

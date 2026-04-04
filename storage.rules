@@ -2,8 +2,15 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{userId}/progress_photos/{allPaths=**} {
-      // Solo el usuario puede subir o leer sus propias fotos de progreso
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Helper para verificar si el solicitante es Staff (Admin/Trainer) desde Firestore
+      function isStaff() {
+        return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'trainer'];
+      }
+
+      // El usuario puede subir/borrar sus fotos. 
+      // El Staff solo puede LEER para seguimiento.
+      allow read: if request.auth != null && (request.auth.uid == userId || isStaff());
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

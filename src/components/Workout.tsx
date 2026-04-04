@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ROUTINES, EXERCISES, getLevelColor, getTitleColor } from '../constants';
 import { Routine, Exercise, WorkoutSession, Set, ActiveExercise, WorkoutState, RestState, Screen } from '../types';
+import { formatKineticDate, toKineticISO } from '../utils/date';
+import { DialogConfig } from './Dialog';
+import { Button } from './common/Button';
 
 type WorkoutView = 'selection' | 'active' | 'create' | 'preview';
 
@@ -16,9 +19,10 @@ interface WorkoutProps {
   setRestState: React.Dispatch<React.SetStateAction<RestState>>;
   onScreenChange: (screen: Screen) => void;
   userRole?: string;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
-export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState, restState, setRestState, onScreenChange, userRole }) => {
+export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState, restState, setRestState, onScreenChange, userRole, onShowDialog }) => {
   const [view, setView] = useState<WorkoutView>(workoutState.isActive ? 'active' : (initialRoutine ? 'preview' : 'selection'));
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(initialRoutine || null);
   
@@ -30,11 +34,6 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
   const [newRoutineName, setNewRoutineName] = useState('');
   const [newRoutineDesc, setNewRoutineDesc] = useState('');
   
-  // Custom Confirmation UI State
-  const [confirmAction, setConfirmAction] = useState<'stop' | 'finish' | null>(null);
-  const [exerciseToDelete, setExerciseToDelete] = useState<ActiveExercise | null>(null);
-  const [uiMessage, setUiMessage] = useState<string | null>(null);
-
   // Sync internal state if initialRoutine prop changes (only if not active)
   useEffect(() => {
     if (initialRoutine && !workoutState.isActive) {
@@ -54,25 +53,30 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
   };
 
   const handleStartRoutine = (routine: Routine) => {
+    const lastExerciseSets = new Map<string, Set[]>();
+    [...sessions].reverse().forEach(session => {
+      session.exercises.forEach(ex => {
+        lastExerciseSets.set(ex.name, ex.sets);
+      });
+    });
+
     let templateExercises: ActiveExercise[] = [];
     if (routine.exerciseIds && routine.exerciseIds.length > 0) {
       templateExercises = routine.exerciseIds.map(id => {
         const exercise = EXERCISES.find(ex => ex.id === id);
         if (!exercise) return null;
 
-        // Smart weight loading: find last time this exercise was performed
-        let lastSets: Set[] = [{ id: Math.random().toString(36).substr(2, 9), weight: 0, reps: 0, completed: false }];
+        const prevSets = lastExerciseSets.get(exercise.name);
+        let lastSets: Set[];
         
-        for (const session of sessions) {
-          const prevEx = session.exercises.find(e => e.name === exercise.name);
-          if (prevEx && prevEx.sets.length > 0) {
-            lastSets = prevEx.sets.map(s => ({
-              ...s,
-              id: Math.random().toString(36).substr(2, 9),
-              completed: false // Reset completion status
-            }));
-            break;
-          }
+        if (prevSets && prevSets.length > 0) {
+          lastSets = prevSets.map(s => ({
+            ...s,
+            id: crypto.randomUUID(),
+            completed: false 
+          }));
+        } else {
+          lastSets = [{ id: crypto.randomUUID(), weight: 0, reps: 0, completed: false }];
         }
 
         return {
@@ -104,7 +108,7 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
   const addExercise = (exercise: Exercise) => {
     const newActiveEx: ActiveExercise = {
       ...exercise,
-      sets: [{ id: Math.random().toString(36).substr(2, 9), weight: 0, reps: 0, completed: false }]
+      sets: [{ id: crypto.randomUUID(), weight: 0, reps: 0, completed: false }]
     };
     setWorkoutState(prev => ({ ...prev, activeExercises: [...prev.activeExercises, newActiveEx] }));
     setIsSelectorOpen(false);
@@ -120,7 +124,7 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           return {
             ...ex,
             sets: [...ex.sets, { 
-              id: Math.random().toString(36).substr(2, 9), 
+              id: crypto.randomUUID(), 
               weight: lastSet?.weight || 0, 
               reps: lastSet?.reps || 0, 
               completed: false 
@@ -148,7 +152,6 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
   };
 
   const cancelWorkout = () => {
-    setConfirmAction(null);
     setWorkoutState({
       isActive: false,
       selectedRoutine: null,
@@ -170,22 +173,16 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
       sets: ex.sets.filter(s => s.completed)
     })).filter(ex => ex.sets.length > 0);
 
-    if (completedExercises.length === 0) {
-      setUiMessage("No has marcado ninguna serie completada. Marca al menos una para guardar.");
-      return;
-    }
-
     const session: WorkoutSession = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       name: workoutState.selectedRoutine?.name || 'Sesión Libre',
-      date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }),
+      date: toKineticISO(),
       duration: formatTime(elapsedSeconds),
       volume: totalVolume.toLocaleString() + ' kg',
       category: workoutState.selectedRoutine?.category || 'General',
       exercises: completedExercises
     };
 
-    console.log('Finalizando y guardando sesión:', session);
     onFinish(session);
     setWorkoutState({
       isActive: false,
@@ -213,25 +210,27 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
 
         <div className="grid grid-cols-2 gap-4">
           {(userRole === 'admin' || userRole === 'trainer') && (
-            <button 
+            <Button 
+              variant="surface"
               onClick={() => setView('create')}
-              className="bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-[0.98]"
+              className="p-6 h-auto flex flex-col gap-3 rounded-2xl"
             >
               <div className="w-12 h-12 rounded-full bg-primary-container/20 flex items-center justify-center text-primary-container">
                 <span className="material-symbols-outlined">add_circle</span>
               </div>
-              <span className="font-headline font-bold text-sm uppercase tracking-widest">Nueva Rutina</span>
-            </button>
+              <span className="font-headline font-bold text-sm uppercase tracking-widest text-on-surface">Nueva Rutina</span>
+            </Button>
           )}
-          <button 
+          <Button 
+            variant="surface"
             onClick={handleStartFreeSession}
-            className={`bg-surface-container-high p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border border-outline-variant/10 hover:bg-surface-container-highest transition-colors active:scale-[0.98] ${(userRole === 'admin' || userRole === 'trainer') ? '' : 'col-span-2'}`}
+            className={`p-6 h-auto flex flex-col gap-3 rounded-2xl ${(userRole === 'admin' || userRole === 'trainer') ? '' : 'col-span-2'}`}
           >
             <div className="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">
               <span className="material-symbols-outlined">bolt</span>
             </div>
-            <span className="font-headline font-bold text-sm uppercase tracking-widest">Sesión Libre</span>
-          </button>
+            <span className="font-headline font-bold text-sm uppercase tracking-widest text-on-surface">Sesión Libre</span>
+          </Button>
         </div>
 
         <section className="space-y-4">
@@ -354,12 +353,12 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           </div>
         </div>
 
-        <button 
+        <Button 
           onClick={() => handleStartRoutine(selectedRoutine)}
-          className="w-full kinetic-gradient py-6 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-[0.98] transition-transform text-lg"
+          className="w-full py-6 rounded-2xl text-lg"
         >
           Iniciar Entrenamiento
-        </button>
+        </Button>
       </motion.div>
     );
   }
@@ -425,11 +424,27 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
 
           <button 
             onClick={() => {
-              if (!newRoutineName) return setUiMessage('Ingresa un nombre para la rutina');
-              if (activeExercises.length === 0) return setUiMessage('Añade al menos un ejercicio');
+              if (!newRoutineName) {
+                onShowDialog({
+                  type: 'info',
+                  title: 'FALTA NOMBRE',
+                  message: 'Por favor, ingresa un nombre para identificar tu nueva rutina.',
+                  confirmText: 'OK'
+                });
+                return;
+              }
+              if (activeExercises.length === 0) {
+                onShowDialog({
+                  type: 'info',
+                  title: 'SIN EJERCICIOS',
+                  message: 'Una rutina necesita al menos un ejercicio. ¡Añade uno para empezar!',
+                  confirmText: 'IR A ELEGIR'
+                });
+                return;
+              }
               
               const newRoutine: Routine = {
-                id: Math.random().toString(36).substr(2, 9),
+                id: crypto.randomUUID(),
                 name: newRoutineName,
                 description: newRoutineDesc,
                 exercisesCount: activeExercises.length,
@@ -555,27 +570,48 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
       </section>
 
       <div className="flex flex-col sm:flex-row gap-4 relative z-20">
-        <button 
+        <Button 
           type="button"
-          onClick={() => setConfirmAction('stop')}
-          className="flex-1 bg-surface-container-high py-4 rounded-2xl flex items-center justify-center gap-2 font-headline font-black text-[10px] uppercase tracking-[0.2em] active:scale-[0.98] transition-transform text-error border border-error/10 hover:bg-error/5"
+          variant="error"
+          onClick={() => {
+            onShowDialog({
+              type: 'confirm',
+              title: '¿DETENER SESIÓN?',
+              message: 'Esta acción descartará todo el progreso actual y no se guardará en el historial.',
+              confirmText: 'CONFIRMAR STOP',
+              onConfirm: cancelWorkout
+            });
+          }}
+          className="flex-1 py-4 text-[10px] tracking-[0.2em]"
         >
           <span className="material-symbols-outlined text-lg">stop_circle</span> Detener Sesión
-        </button>
-        <button 
+        </Button>
+        <Button 
           type="button"
+          variant="secondary"
           onClick={() => {
             const hasCompleted = activeExercises.some(ex => ex.sets.some(s => s.completed));
             if (!hasCompleted) {
-              setUiMessage("Marca al menos una serie para finalizar.");
+              onShowDialog({
+                type: 'info',
+                title: 'SIN SERIES',
+                message: 'Debes marcar al menos una serie como completada para poder finalizar.',
+                confirmText: 'OK'
+              });
             } else {
-              setConfirmAction('finish');
+              onShowDialog({
+                type: 'confirm',
+                title: '¿FINALIZAR SESIÓN?',
+                message: '¡Buen trabajo! ¿Estás listo para guardar tu progreso y cerrar el entrenamiento?',
+                confirmText: 'GUARDAR AHORA',
+                onConfirm: finishWorkout
+              });
             }
           }}
-          className="flex-1 secondary-gradient py-4 rounded-2xl flex items-center justify-center gap-2 font-headline font-black text-[10px] uppercase tracking-[0.2em] active:scale-[0.98] transition-transform text-white shadow-xl shadow-secondary/10"
+          className="flex-1 py-4 text-[10px] tracking-[0.2em] shadow-xl shadow-secondary/10"
         >
           <span className="material-symbols-outlined text-lg">check_circle</span> Finalizar y Guardar
-        </button>
+        </Button>
       </div>
 
       <button 
@@ -596,7 +632,20 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
               </div>
               <button 
                 type="button"
-                onClick={() => setExerciseToDelete(exercise)}
+                onClick={() => {
+                  onShowDialog({
+                    type: 'confirm',
+                    title: '¿QUITAR EJERCICIO?',
+                    message: `¿Seguro que quieres eliminar "${exercise.name}" de esta sesión? Se perderán las series de este ejercicio.`,
+                    confirmText: 'QUITAR',
+                    onConfirm: () => {
+                      setWorkoutState(prev => ({
+                        ...prev,
+                        activeExercises: prev.activeExercises.filter(ex => ex.id !== exercise.id)
+                      }));
+                    }
+                  });
+                }}
                 className="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-90"
               >
                 <span className="material-symbols-outlined text-lg">delete</span>
@@ -638,7 +687,6 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                         const newCompleted = !set.completed;
                         updateSet(exercise.id, set.id, 'completed', newCompleted);
                         if (newCompleted) {
-                          // Suggest rest
                           setRestState({ isActive: true, timeLeft: 90, totalTime: 90 });
                           onScreenChange('descanso');
                         }
@@ -651,12 +699,13 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                 </div>
               ))}
               
-              <button 
+              <Button 
                 onClick={() => addSet(exercise.id)}
-                className="w-full py-2 mt-2 rounded-lg border border-dashed border-outline-variant/30 text-outline text-[10px] font-bold uppercase tracking-widest hover:bg-surface-container-low transition-colors"
+                variant="outline"
+                className="w-full py-2 mt-2 rounded-lg text-[10px]"
               >
                 + Añadir Serie
-              </button>
+              </Button>
             </div>
           </div>
         ))}
@@ -669,7 +718,6 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
         )}
       </div>
 
-      {/* Quick Exercise Selector Modal */}
       <AnimatePresence>
         {isSelectorOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -740,129 +788,6 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                     <span className="material-symbols-outlined text-outline group-hover:text-primary-container">add_circle</span>
                   </button>
                 ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Action Notification/Message */}
-      <AnimatePresence>
-        {uiMessage && (
-          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-full max-w-sm px-6">
-            <motion.div 
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-surface-container-highest border-l-4 border-secondary p-4 rounded-2xl shadow-2xl flex items-center gap-4"
-            >
-              <span className="material-symbols-outlined text-secondary">info</span>
-              <p className="font-headline font-bold text-[10px] uppercase tracking-widest flex-1">{uiMessage}</p>
-              <button onClick={() => setUiMessage(null)} className="text-outline">
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Confirmation Modals */}
-      <AnimatePresence>
-        {confirmAction && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setConfirmAction(null)}
-              className="absolute inset-0 bg-background/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-surface-container-high p-8 rounded-[40px] border border-outline-variant/10 shadow-2xl flex flex-col items-center text-center gap-6"
-            >
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${confirmAction === 'stop' ? 'bg-error/10 text-error' : 'bg-secondary/10 text-secondary'}`}>
-                <span className="material-symbols-outlined text-4xl">{confirmAction === 'stop' ? 'warning' : 'check_circle'}</span>
-              </div>
-              
-              <div>
-                <h3 className="font-headline text-2xl font-black uppercase italic leading-tight mb-2">
-                  {confirmAction === 'stop' ? '¿DETENER SESIÓN?' : '¿FINALIZAR SESIÓN?'}
-                </h3>
-                <p className="text-on-surface-variant text-xs font-bold leading-relaxed px-4">
-                  {confirmAction === 'stop' 
-                    ? 'Esta acción descartará todo el progreso actual y no se guardará en el historial.' 
-                    : 'Asegúrate de haber marcado todas tus series antes de guardar.'}
-                </p>
-              </div>
-
-              <div className="w-full flex gap-3">
-                <button 
-                  onClick={() => setConfirmAction(null)}
-                  className="flex-1 py-4 rounded-xl bg-surface-container-high border border-outline-variant/20 font-headline font-black text-[10px] uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
-                >
-                  Regresar
-                </button>
-                <button 
-                  onClick={confirmAction === 'stop' ? cancelWorkout : finishWorkout}
-                  className={`flex-1 py-4 rounded-xl font-headline font-black text-[10px] uppercase tracking-widest text-on-primary-container shadow-xl ${confirmAction === 'stop' ? 'bg-error text-white shadow-error/10' : 'kinetic-gradient shadow-primary/10'}`}
-                >
-                  {confirmAction === 'stop' ? 'Confirmar Stop' : 'Confirmar Guardar'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Exercise Deletion Confirmation */}
-      <AnimatePresence>
-        {exerciseToDelete && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setExerciseToDelete(null)}
-              className="absolute inset-0 bg-background/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-surface-container-high p-8 rounded-[40px] border border-outline-variant/10 shadow-2xl flex flex-col items-center text-center gap-6"
-            >
-              <div className="w-16 h-16 rounded-full bg-error/10 text-error flex items-center justify-center">
-                <span className="material-symbols-outlined text-4xl">delete_sweep</span>
-              </div>
-              
-              <div>
-                <h3 className="font-headline text-2xl font-black uppercase italic leading-tight mb-2">
-                  ¿QUITAR EJERCICIO?
-                </h3>
-                <p className="text-on-surface-variant text-xs font-bold leading-relaxed px-4">
-                  ¿Seguro que quieres eliminar "{exerciseToDelete.name}" de esta sesión? Se perderán las series de este ejercicio.
-                </p>
-              </div>
-
-              <div className="w-full flex gap-3">
-                <button 
-                  onClick={() => setExerciseToDelete(null)}
-                  className="flex-1 py-4 rounded-xl bg-surface-container-high border border-outline-variant/20 font-headline font-black text-[10px] uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
-                >
-                  Regresar
-                </button>
-                <button 
-                  onClick={() => {
-                    setWorkoutState(prev => ({ ...prev, activeExercises: prev.activeExercises.filter(ex => ex.id !== exerciseToDelete.id) }));
-                    setExerciseToDelete(null);
-                  }}
-                  className="flex-1 py-4 rounded-xl bg-error font-headline font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-error/20 active:scale-[0.98] transition-transform"
-                >
-                  Quitar
-                </button>
               </div>
             </motion.div>
           </div>

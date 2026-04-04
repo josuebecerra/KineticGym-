@@ -1,17 +1,16 @@
 import React from 'react';
 import { Screen, UserProfile } from '../types';
 import { cn } from '../lib/utils';
-import { auth } from '../lib/firebase';
-import { signOut } from 'firebase/auth';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeScreen: Screen;
   onScreenChange: (screen: Screen) => void;
   userProfile?: UserProfile | null;
+  onLogout: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreenChange, userProfile }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreenChange, userProfile, onLogout }) => {
   const navItems: { id: Screen; label: string; icon: string }[] = [
     { id: 'inicio', label: 'Incio', icon: 'dashboard' },
     { id: 'entrenar', label: 'Fuerza', icon: 'fitness_center' },
@@ -21,7 +20,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
   ];
 
   const handleSignOut = () => {
-    signOut(auth).catch((error) => console.error('Error cerrando sesión:', error));
+    onLogout();
   };
 
   return (
@@ -59,6 +58,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
           <div className="flex items-center gap-4">
             {userProfile && (
               <>
+                {userProfile.role === 'trainee' && userProfile.subscription && (
+                  <div className="hidden sm:flex items-center gap-2 group px-3 py-1.5 bg-surface-container-high rounded-full border border-outline-variant/10">
+                    <div className={cn(
+                      "w-2 h-2 rounded-full animate-pulse",
+                      new Date(userProfile.subscription.endDate) > new Date() ? "bg-primary-container shadow-[0_0_8px_rgba(202,253,0,0.6)]" : "bg-error shadow-[0_0_8px_rgba(255,82,82,0.6)]"
+                    )} />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-outline group-hover:text-white transition-colors">
+                      {new Date(userProfile.subscription.endDate) > new Date() ? "Suscripción Activa" : "Vencida"}
+                    </span>
+                  </div>
+                )}
                 {['admin', 'trainer'].includes(userProfile.role) && (
                   <button 
                     onClick={() => onScreenChange('entrenador')}

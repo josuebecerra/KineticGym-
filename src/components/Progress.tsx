@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ProgressLog, UserProfile } from '../types';
 import { uploadProgressPhoto } from '../services/db';
 import { User } from 'firebase/auth';
+import { formatKineticDate, toKineticISO } from '../utils/date';
+import { DialogConfig } from './Dialog';
 
 interface ProgressProps {
   user: User;
@@ -11,9 +13,10 @@ interface ProgressProps {
   onAdd: (log: ProgressLog) => void;
   onEditAssessment: () => void;
   onBack: () => void;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
-export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onAdd, onEditAssessment, onBack }) => {
+export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onAdd, onEditAssessment, onBack, onShowDialog }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [newLog, setNewLog] = useState({
@@ -93,8 +96,8 @@ export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onA
       }
       
       const log: ProgressLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        date: new Date().toISOString().split('T')[0],
+        id: crypto.randomUUID(),
+        date: toKineticISO(),
         weight: newLog.weight,
         measurements: {
           waist: newLog.waist,
@@ -113,7 +116,12 @@ export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onA
       setNewLog({ weight: 0, waist: 0, chest: 0, hips: 0, arms: 0, legs: 0, calves: 0, bodyFat: 0, photos: [] });
     } catch (error) {
       console.error("Error al subir fotos:", error);
-      alert("Hubo un error subiendo las fotos al servidor.");
+      onShowDialog({
+        type: 'error',
+        title: 'ERROR DE CARGA',
+        message: 'No pudimos subir las fotos del progreso. Por favor, inténtalo de nuevo.',
+        confirmText: 'REINTENTAR'
+      });
     } finally {
       setIsUploading(false);
     }
@@ -338,8 +346,12 @@ export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onA
         <div className="flex justify-between mt-6 px-4">
           {sortedLogs.map(log => (
             <div key={log.id} className="flex flex-col items-center gap-1">
-              <span className="text-[8px] font-black text-outline uppercase tracking-widest">{new Date(log.date).toLocaleDateString('es-ES', { day: '2-digit' })}</span>
-              <span className="text-[8px] font-bold text-on-surface-variant uppercase">{new Date(log.date).toLocaleDateString('es-ES', { month: 'short' })}</span>
+              <span className="text-[8px] font-black text-outline uppercase tracking-widest">
+                {formatKineticDate(log.date, { short: true }).split(' ')[0]}
+              </span>
+              <span className="text-[8px] font-bold text-on-surface-variant uppercase">
+                {formatKineticDate(log.date, { short: true }).split(' ')[1]}
+              </span>
             </div>
           ))}
         </div>

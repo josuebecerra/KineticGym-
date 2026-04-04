@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AssessmentData } from '../types';
 import { saveAssessment } from '../services/db';
+import { DialogConfig } from './Dialog';
 
 interface AssessmentProps {
   uid: string;
@@ -9,11 +10,12 @@ interface AssessmentProps {
   onComplete: () => void;
   initialData?: AssessmentData;
   onClose?: () => void;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
 type Step = 'welcome' | 'goal' | 'history' | 'knowledge' | 'frequency' | 'biometrics' | 'conditions' | 'success';
 
-export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplete, initialData, onClose }) => {
+export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplete, initialData, onClose, onShowDialog }) => {
   const [step, setStep] = useState<Step>('welcome');
   const [data, setData] = useState<Partial<AssessmentData>>(initialData || {
     conditions: []
@@ -54,6 +56,12 @@ export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplet
       setTimeout(onComplete, 2500);
     } catch (error) {
       console.error("Error saving assessment:", error);
+      onShowDialog({
+        type: 'error',
+        title: 'FALLO AL GUARDAR',
+        message: 'Hubo un error de sincronización al intentar guardar tu ficha técnica.',
+        confirmText: 'REINTENTAR'
+      });
     } finally {
       setIsSaving(false);
     }

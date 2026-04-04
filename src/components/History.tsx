@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WorkoutSession } from '../types';
+import { formatKineticDate } from '../utils/date';
+import { DialogConfig } from './Dialog';
 
 interface HistoryProps {
   sessions: WorkoutSession[];
   onDeleteSession?: (session: WorkoutSession) => void;
+  onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
-export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) => {
+export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession, onShowDialog }) => {
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
-  const [sessionToDelete, setSessionToDelete] = useState<WorkoutSession | null>(null);
 
   return (
     <motion.div 
@@ -53,7 +55,13 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSessionToDelete(session);
+                      onShowDialog({
+                        type: 'confirm',
+                        title: '¿ELIMINAR SESIÓN?',
+                        message: `Esta acción eliminará definitivamente el registro de "${session.name}" de tu historial.`,
+                        confirmText: 'BORRAR AHORA',
+                        onConfirm: () => onDeleteSession?.(session)
+                      });
                     }}
                     className="relative z-[60] w-12 h-12 rounded-full bg-error/10 backdrop-blur-md flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-[0.85]"
                   >
@@ -63,7 +71,7 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
                 </div>
                 <div className="p-6">
                   <div className="mb-6">
-                    <p className="font-label text-on-surface-variant text-xs mb-1 uppercase tracking-widest font-bold opacity-70">{session.date}</p>
+                    <p className="font-label text-on-surface-variant text-xs mb-1 uppercase tracking-widest font-bold opacity-70">{formatKineticDate(session.date)}</p>
                     <h2 className="font-headline text-3xl font-black tracking-tight uppercase leading-none">{session.name}</h2>
                   </div>
                   <div className="flex gap-8 mb-8">
@@ -100,7 +108,7 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
             ) : (
               <>
                 <div>
-                  <p className="font-label text-on-surface-variant text-[10px] mb-1 font-bold opacity-60 uppercase tracking-widest">{session.date}</p>
+                  <p className="font-label text-on-surface-variant text-[10px] mb-1 font-bold opacity-60 uppercase tracking-widest">{formatKineticDate(session.date)}</p>
                   <h3 className="font-headline text-xl font-extrabold tracking-tight mb-2 uppercase leading-none">{session.name}</h3>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
@@ -122,7 +130,13 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSessionToDelete(session);
+                      onShowDialog({
+                        type: 'confirm',
+                        title: '¿ELIMINAR SESIÓN?',
+                        message: `Esta acción eliminará definitivamente el registro de "${session.name}" de tu historial.`,
+                        confirmText: 'BORRAR AHORA',
+                        onConfirm: () => onDeleteSession?.(session)
+                      });
                     }}
                     className="relative z-50 w-11 h-11 rounded-full bg-surface-container-highest flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-[0.85]"
                   >
@@ -173,7 +187,7 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
               
               <div className="px-8 pb-8 flex-1 overflow-y-auto custom-scrollbar">
                 <header className="mb-10 text-center">
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary mb-2">{selectedSession.date} • {selectedSession.category}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary mb-2">{formatKineticDate(selectedSession.date)} • {selectedSession.category}</p>
                   <h2 className="font-headline text-4xl font-black uppercase tracking-tight leading-none mb-4">{selectedSession.name}</h2>
                   <div className="flex justify-center gap-12 mt-6">
                     <div className="text-center">
@@ -258,58 +272,6 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession }) =
                   className="w-full mt-12 py-5 kinetic-gradient rounded-[24px] font-headline font-black text-on-primary-container tracking-[0.3em] uppercase shadow-2xl active:scale-[0.98] transition-transform"
                 >
                   Cerrar Detalles
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {sessionToDelete && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSessionToDelete(null)}
-              className="absolute inset-0 bg-background/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-surface-container-high p-8 rounded-[40px] border border-outline-variant/10 shadow-2xl flex flex-col items-center text-center gap-6"
-            >
-              <div className="w-16 h-16 rounded-full bg-error/10 text-error flex items-center justify-center">
-                <span className="material-symbols-outlined text-4xl">warning</span>
-              </div>
-              
-              <div>
-                <h3 className="font-headline text-2xl font-black uppercase italic leading-tight mb-2">
-                  ¿ELIMINAR SESIÓN?
-                </h3>
-                <p className="text-on-surface-variant text-xs font-bold leading-relaxed px-4">
-                  Esta acción eliminará definitivamente el registro de "{sessionToDelete.name}" de tu historial. No se puede deshacer.
-                </p>
-              </div>
-
-              <div className="w-full flex gap-3">
-                <button 
-                  onClick={() => setSessionToDelete(null)}
-                  className="flex-1 py-4 rounded-xl bg-surface-container-high border border-outline-variant/20 font-headline font-black text-[10px] uppercase tracking-widest text-outline hover:text-on-surface transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={() => {
-                    onDeleteSession?.(sessionToDelete);
-                    setSessionToDelete(null);
-                  }}
-                  className="flex-1 py-4 rounded-xl bg-error font-headline font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-error/20 active:scale-[0.98] transition-transform"
-                >
-                  Confirmar Borrar
                 </button>
               </div>
             </motion.div>

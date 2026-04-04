@@ -7,6 +7,7 @@ import {
   signInWithPopup,
   AuthError
 } from 'firebase/auth';
+import { Button } from './common/Button';
 
 interface LoginProps {
   onLogin?: () => void; // Firebase se encarga del estado de sesión en App.tsx, esto es solo un callback opcional.
@@ -127,13 +128,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             )}
           </div>
 
-          <button 
+          <Button 
             type="submit"
-            disabled={isLoading}
-            className={`w-full kinetic-gradient py-5 rounded-xl font-headline font-black text-on-primary-container tracking-widest uppercase shadow-2xl shadow-primary-container/20 transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110 active:scale-[0.98]'}`}
+            isLoading={isLoading}
+            loadingText="Autenticando..."
+            className="w-full"
           >
-            {isLoading ? 'Cargando...' : (isRegistering ? 'Crear Perfil Kinetic' : 'Ingresar')}
-          </button>
+            {!isLoading && (isRegistering ? 'Crear Perfil Kinetic' : 'Ingresar')}
+          </Button>
 
           <div className="text-center pt-2">
             <button 
@@ -159,18 +161,24 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
 
         {/* Social Login: Google */}
-        <button 
+        <Button 
           type="button"
           onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className="w-full relative overflow-hidden group bg-surface-container border border-outline-variant/20 py-4 rounded-xl flex items-center justify-center gap-4 hover:border-primary-container/50 transition-all active:scale-[0.98]"
+          variant="surface"
+          isLoading={isLoading}
+          loadingText="Conectando con Google..."
+          className="w-full relative overflow-hidden group py-4 flex items-center justify-center gap-4 hover:border-primary-container/50 transition-all"
         >
-          <div className="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-          <img src="https://www.cdnlogo.com/logos/g/35/google-icon.svg" alt="Google" className="w-6 h-6 z-10" />
-          <span className="font-label font-bold text-on-surface tracking-wider z-10">
-            Continuar con Google
-          </span>
-        </button>
+          {!isLoading && (
+            <>
+              <div className="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <img src="https://www.cdnlogo.com/logos/g/35/google-icon.svg" alt="Google" className="w-6 h-6 z-10" />
+              <span className="font-label font-bold text-on-surface tracking-wider z-10">
+                Continuar con Google
+              </span>
+            </>
+          )}
+        </Button>
       </motion.div>
     </div>
   );

@@ -13,7 +13,7 @@ import {
   onSnapshot 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData } from '../types';
+import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData, SubscriptionData, MembershipPlan } from '../types';
 
 // Helper to get a user's reference
 const getUserRef = (uid: string) => doc(db, 'users', uid);
@@ -134,6 +134,11 @@ export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
         date: new Date().toISOString(),
         type: 'info'
       }
+    ],
+    membershipPlans: [
+      { id: '1month', name: 'Mensual', price: '40', description: 'Acceso total por 30 días' },
+      { id: '6months', name: 'Semestral', price: '200', description: '¡Ahorra 15%! Acceso por 180 días' },
+      { id: '1year', name: 'Anual', price: '350', description: '¡Mejor Valor! Acceso ilimitado por 365 días' }
     ]
   };
 
@@ -141,7 +146,12 @@ export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
     async (docSnap) => {
       try {
         if (docSnap.exists()) {
-          onUpdate(docSnap.data() as GymInfo);
+          const cloudData = docSnap.data() as GymInfo;
+          // Merge with defaults to ensure missing fields (like membershipPlans) are always present
+          onUpdate({
+            ...defaults,
+            ...cloudData
+          });
         } else {
           // Initialize with defaults if empty (this might fail if not admin, which is fine)
           try {
@@ -184,6 +194,15 @@ export const assignRoutineToUser = async (uid: string, routine: Routine) => {
   });
 };
 
+// Assign a trainer to a specific user
+export const assignTrainerToUser = async (clientUid: string, trainerUid: string, trainerName: string) => {
+  const clientRef = getUserRef(clientUid);
+  await updateDoc(clientRef, {
+    trainerId: trainerUid,
+    trainerName: trainerName
+  });
+};
+
 // Update user settings/profile
 export const updateUserProfile = async (uid: string, changes: Partial<UserProfile>) => {
   const userRef = getUserRef(uid);
@@ -200,6 +219,60 @@ export const saveAssessment = async (uid: string, data: AssessmentData) => {
   const userRef = getUserRef(uid);
   await updateDoc(userRef, {
     assessment: data
+  });
+};
+
+// Update user subscription (Admin only)
+export const updateUserSubscription = async (uid: string, data: SubscriptionData) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    subscription: data,
+    subscriptionHistory: arrayUnion(data),
+    membershipRequest: null // Clear any pending request upon manual update
+  });
+};
+
+// Request a membership plan (Trainee)
+export const requestMembership = async (uid: string, planId: '1month' | '6months' | '1year') => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    membershipRequest: {
+      planId,
+      requestDate: new Date().toISOString(),
+      status: 'pending'
+    }
+  });
+};
+
+// Approve a pending membership (Admin)
+export const approveMembership = async (uid: string, planId: '1month' | '6months' | '1year') => {
+  const userRef = getUserRef(uid);
+  
+  const now = new Date();
+  const endDate = new Date(now);
+  if (planId === '1month') endDate.setMonth(endDate.getMonth() + 1);
+  else if (planId === '6months') endDate.setMonth(endDate.getMonth() + 6);
+  else if (planId === '1year') endDate.setFullYear(endDate.getFullYear() + 1);
+
+  const subscription: SubscriptionData = {
+    planId,
+    startDate: now.toISOString(),
+    endDate: endDate.toISOString(),
+    status: 'active'
+  };
+
+  await updateDoc(userRef, {
+    subscription,
+    subscriptionHistory: arrayUnion(subscription),
+    membershipRequest: null // Request fulfilled
+  });
+};
+
+// Reject a membership request (Admin)
+export const rejectMembership = async (uid: string) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    'membershipRequest.status': 'rejected'
   });
 };
 

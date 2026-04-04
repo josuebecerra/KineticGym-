@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Screen, WorkoutSession, Routine, ProgressLog, WorkoutState, UserProfile, RestState } from './types';
 import { Layout } from './components/Layout';
 import { Home } from './components/Home';
@@ -17,8 +17,13 @@ import { Login } from './components/Login';
 import { Assessment } from './components/Assessment';
 import { EXERCISES } from './constants';
 import { auth } from './lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { initializeUser, listenToUserData, saveWorkoutSession, deleteWorkoutSession, saveProgressLog, getAllUsers, listenToGymInfo } from './services/db';
+import { Dialog, DialogConfig } from './components/Dialog';
+import { SessionWarningDialog } from './components/SessionWarningDialog';
+import { MembershipGate } from './components/MembershipGate';
+
+
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,6 +50,197 @@ export default function App() {
     timeLeft: 90,
     totalTime: 90
   });
+
+  const lastActivityRef = useRef<number>(Date.now());
+  // Stable refs to avoid remounting the session interval when state changes
+  const gymInfoRef = useRef<any>(null);
+  const workoutActiveRef = useRef<boolean>(false);
+  const userRef = useRef<User | null>(null);
+
+  // Global Dialog State
+  const [dialogConfig, setDialogConfig] = useState<DialogConfig>({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: ''
+  });
+  
+  const hasShownSubscriptionAlert = useRef(false);
+  const hasShownTimeoutWarningRef = useRef(false);
+  const sessionNonceRef = useRef<string>(Math.random().toString(36).substring(7));
+
+  // State for the dedicated session warning dialog (separate from global Dialog)
+  const [sessionWarning, setSessionWarning] = useState<{ show: boolean; totalSeconds: number; secondsLeft: number }>({
+    show: false,
+    totalSeconds: 0,
+    secondsLeft: 0,
+  });
+
+  // Debug Timer State (only for testing as requested)
+  const [debugTimeLeft, setDebugTimeLeft] = useState<string>('--:--');
+
+  const showDialog = (config: Omit<DialogConfig, 'isOpen'>) => {
+    setDialogConfig({ ...config, isOpen: true });
+  };
+
+  // Stable ref to handleLogout so the interval always calls the latest version
+  const handleLogoutRef = useRef<() => Promise<void>>(async () => {});
+
+  // Function to completely clear all user data and sign out
+  const handleLogout = async (nonce?: string) => {
+    // If a nonce is provided, only proceed if it matches the current session ticket
+    if (nonce && nonce !== sessionNonceRef.current) {
+      console.warn("Logout attempt blocked: Stale session ticket (nonce).");
+      return;
+    }
+
+    try {
+      await signOut(auth);
+      // Reset all states
+      setUser(null);
+      setUserProfile(null);
+      setHistory([]);
+      setProgress([]);
+      setAllUsers([]);
+      setPreSelectedRoutine(null);
+      setIsEditingAssessment(false);
+      setActiveScreen('inicio');
+      
+      // CLEANUP: Close all session-related dialogs and warnings
+      setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+      setDialogConfig({ isOpen: false, type: 'info', title: '', message: '' });
+      hasShownTimeoutWarningRef.current = false;
+      hasShownSubscriptionAlert.current = false;
+      
+      // PERSISTENT CLEANUP: Scrub all activity history from storage
+      localStorage.removeItem('kinetic_last_activity');
+      localStorage.removeItem('kinetic_session_nonce');
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
+
+  // Keep stable refs in sync with state (these don't cause re-renders)
+  useEffect(() => { gymInfoRef.current = gymInfo; }, [gymInfo]);
+  useEffect(() => { workoutActiveRef.current = workoutState.isActive; }, [workoutState.isActive]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { handleLogoutRef.current = handleLogout; });
+
+  // Activity Tracking — mounted ONCE, reads dynamic values via stable refs
+  useEffect(() => {
+    const handleActivity = () => {
+      // THE VAULT: If the warning is showing, ignore absolutely ALL background activity.
+      if (hasShownTimeoutWarningRef.current === true) return;
+      
+      const now = Date.now();
+      localStorage.setItem('kinetic_last_activity', now.toString());
+
+      // Sincronización instantánea para el hilo actual (además del listener global)
+      lastActivityRef.current = now;
+
+      // Instant refresh of the debug timer label
+      if (userRef.current) {
+        const timeoutMin = Number(gymInfoRef.current?.sessionTimeoutMinutes) || 30;
+        setDebugTimeLeft(`[VIVO] ${timeoutMin}:00`);
+      }
+    };
+
+    window.addEventListener('mousemove', handleActivity, true);
+    window.addEventListener('mousedown', handleActivity, true);
+    window.addEventListener('scroll', handleActivity, true);
+    window.addEventListener('wheel', handleActivity, true);
+    window.addEventListener('click', handleActivity, true);
+    window.addEventListener('pointerdown', handleActivity, true);
+    window.addEventListener('keydown', handleActivity, true);
+    window.addEventListener('touchstart', handleActivity, true);
+    
+    // Cross-Tab Sync: If last activity changes in another tab, update here instantly
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'kinetic_last_activity' && e.newValue) {
+        lastActivityRef.current = parseInt(e.newValue);
+      }
+      if (e.key === 'kinetic_session_nonce' && e.newValue) {
+        sessionNonceRef.current = e.newValue;
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Interval runs ONCE for the lifetime of the app — reads master state from localStorage
+    const interval = setInterval(() => {
+      if (!userRef.current) return;
+
+      // Current session ticket ID
+      const currentNonce = sessionNonceRef.current;
+
+      const timeoutMin = Number(gymInfoRef.current?.sessionTimeoutMinutes) || 30;
+      const warningMin = Number(gymInfoRef.current?.sessionWarningMinutes) || 5;
+      const timeoutMs = timeoutMin * 60 * 1000;
+      const warningMs = Math.min(warningMin * 60 * 1000, timeoutMs * 0.8);
+
+      const lastActivityStr = localStorage.getItem('kinetic_last_activity');
+      const lastActivity = lastActivityStr ? parseInt(lastActivityStr) : Date.now();
+      
+      if (workoutActiveRef.current) {
+        localStorage.setItem('kinetic_last_activity', Date.now().toString());
+      }
+
+      const now = Date.now();
+      const elapsedMs = Math.max(0, now - lastActivity);
+      const timeRemainingMs = timeoutMs - elapsedMs;
+      const currentSecondsLeft = Math.floor(timeRemainingMs / 1000);
+
+      if (hasShownTimeoutWarningRef.current) {
+        if (currentSecondsLeft <= 0) {
+          hasShownTimeoutWarningRef.current = false;
+          handleLogoutRef.current(currentNonce); // Passing nonce for validation
+          return;
+        }
+        
+        setSessionWarning(prev => ({ 
+          ...prev, 
+          show: true,
+          secondsLeft: currentSecondsLeft > 0 ? currentSecondsLeft : 0 
+        }));
+        
+        setDebugTimeLeft(`[TICKET:${currentNonce.toUpperCase()}] Quedan: ${currentSecondsLeft}s | E:${Math.floor(elapsedMs/1000)}s`);
+      } else {
+        if (elapsedMs >= timeoutMs) {
+          handleLogoutRef.current(currentNonce); // Passing nonce for validation
+          return;
+        }
+
+        if (timeRemainingMs > 0) {
+          const m = Math.floor(currentSecondsLeft / 60);
+          const s = currentSecondsLeft % 60;
+          setDebugTimeLeft(`[SISTEMA] ${m}:${s.toString().padStart(2, '0')} | TICKET: ${currentNonce.toUpperCase()} | E:${Math.floor(elapsedMs/1000)}s`);
+        }
+
+        if (timeRemainingMs <= warningMs && timeRemainingMs > 0) {
+          hasShownTimeoutWarningRef.current = true;
+          setSessionWarning({ 
+            show: true, 
+            totalSeconds: Math.floor(warningMs / 1000), 
+            secondsLeft: currentSecondsLeft 
+          });
+        }
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity, true);
+      window.removeEventListener('mousedown', handleActivity, true);
+      window.removeEventListener('scroll', handleActivity, true);
+      window.removeEventListener('wheel', handleActivity, true);
+      window.removeEventListener('click', handleActivity, true);
+      window.removeEventListener('pointerdown', handleActivity, true);
+      window.removeEventListener('keydown', handleActivity, true);
+      window.removeEventListener('touchstart', handleActivity, true);
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  // Empty deps: mounts ONCE, all dynamic values read through stable refs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -99,7 +295,19 @@ export default function App() {
       setUser(currentUser);
       setIsAuthLoading(false);
       
+      // DEEP RESET: Ensure a clean slate whenever auth state changes (Login or Logout)
+      setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+      setDialogConfig({ isOpen: false, type: 'info', title: '', message: '' });
+      hasShownTimeoutWarningRef.current = false;
+      hasShownSubscriptionAlert.current = false;
+
       if (currentUser) {
+        // RESET: Ensure session activity starts from now upon login in PERSISTENT storage
+        localStorage.setItem('kinetic_last_activity', Date.now().toString());
+        const newNonce = Math.random().toString(36).substring(7);
+        sessionNonceRef.current = newNonce;
+        localStorage.setItem('kinetic_session_nonce', newNonce);
+        
         try {
           // Initialize user doc if empty
           await initializeUser(currentUser.uid, currentUser.email || 'user@kinetic.app');
@@ -112,18 +320,56 @@ export default function App() {
               const prog = Array.isArray(data.progress) ? [...data.progress].reverse() : [];
               setHistory(hist);
               setProgress(prog);
+
+              // 5-day alert logic for trainees
+              if (data.role === 'trainee' && data.subscription && !hasShownSubscriptionAlert.current) {
+                const daysRemaining = Math.max(0, Math.ceil((new Date(data.subscription.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+                if (daysRemaining <= 5) {
+                  showDialog({
+                    type: 'info',
+                    title: daysRemaining === 0 ? 'MEMBRESÍA VENCIDA' : 'RENOVACIÓN PRÓXIMA',
+                    message: daysRemaining === 0 
+                      ? `Tu acceso a Kinetic ha vencido. Por favor, contacta a la administración para renovar tu plan.`
+                      : `¡Atención Guerrero! Tu membresía de Kinetic vencerá en ${daysRemaining} ${daysRemaining === 1 ? 'día' : 'días'}. Asegura tu cupo renovando a tiempo.`,
+                    confirmText: 'ENTENDIDO'
+                  });
+                  hasShownSubscriptionAlert.current = true;
+                }
+              }
             }
           });
         } catch (error: any) {
           console.error("Error conectando a Firestore. Revisa las reglas de seguridad:", error);
           if (error.code === 'permission-denied') {
-            alert("⚠️ Acceso denegado a la Base de Datos. Necesitas abrir las reglas de Firestore en tu consola (ver chat =)).");
+            showDialog({
+              type: 'error',
+              title: 'ACCESO DENEGADO',
+              message: 'Tu perfil no tiene permisos suficientes en Firestore para esta operación. Revisa la consola de Firebase.',
+              confirmText: 'ENTENDIDO'
+            });
           }
         }
       } else {
+        // CLEANUP: Reset all states when no user is authenticated
         setHistory([]);
         setProgress([]);
         setUserProfile(null);
+        setActiveScreen('inicio');
+        hasShownSubscriptionAlert.current = false;
+        
+        // Reset workout/rest states to prevent leakage
+        setWorkoutState({
+          isActive: false,
+          selectedRoutine: null,
+          activeExercises: [],
+          elapsedSeconds: 0
+        });
+        setRestState({
+          isActive: false,
+          timeLeft: 90,
+          totalTime: 90
+        });
+
         if (unsubscribeDB) unsubscribeDB();
       }
     });
@@ -147,6 +393,22 @@ export default function App() {
     }
   }, [activeScreen]);
 
+  // Proactive Role & Screen Validation
+  // Ensures that users always land in allowed screens for their role
+  useEffect(() => {
+    if (user && userProfile) {
+      const isAdmin = ['admin', 'trainer'].includes(userProfile.role);
+      
+      // If a trainee is trying to access admin-only screens, redirect to home
+      if (!isAdmin && activeScreen === 'entrenador') {
+        setActiveScreen('inicio');
+      }
+      
+      // Safety: if the screen is not recognized or belongs to a different state, 
+      // the layout/render logic covers it, but this adds an extra layer.
+    }
+  }, [user, userProfile, activeScreen]);
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -169,6 +431,7 @@ export default function App() {
           // The real-time listener will update userProfile anyway, 
           // but we can force it if needed.
         }} 
+        onShowDialog={showDialog}
       />
     );
   }
@@ -226,6 +489,7 @@ export default function App() {
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
           gymInfo={gymInfo}
+          userProfile={userProfile}
         />
       );
       case 'entrenar': return (
@@ -240,9 +504,10 @@ export default function App() {
           setRestState={setRestState}
           onScreenChange={setActiveScreen}
           userRole={userProfile?.role}
+          onShowDialog={showDialog}
         />
       );
-      case 'historial': return <History sessions={history} onDeleteSession={handleDeleteSession} />;
+      case 'historial': return <History sessions={history} onDeleteSession={handleDeleteSession} onShowDialog={showDialog} />;
       case 'descanso': return <Rest restState={restState} setRestState={setRestState} />;
       case 'ejercicios': return <Exercises onBack={() => setActiveScreen('explorar')} />;
       case 'progreso': return (
@@ -253,9 +518,10 @@ export default function App() {
           onAdd={handleAddProgressLog} 
           onEditAssessment={() => setIsEditingAssessment(true)}
           onBack={() => setActiveScreen('explorar')} 
+          onShowDialog={showDialog}
         />
       );
-      case 'ajustes': return userProfile ? <Settings profile={userProfile} onBack={() => setActiveScreen('inicio')} /> : (
+      case 'ajustes': return userProfile ? <Settings profile={userProfile} onBack={() => setActiveScreen('inicio')} onShowDialog={showDialog} /> : (
         <Home 
           sessions={history} 
           progress={progress}
@@ -264,9 +530,17 @@ export default function App() {
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
           gymInfo={gymInfo}
+          userProfile={userProfile}
         />
       );
-      case 'entrenador': return <TrainerDashboard onBack={() => setActiveScreen('inicio')} currentRole={userProfile?.role} />;
+      case 'entrenador': return (
+        <TrainerDashboard 
+          onBack={() => setActiveScreen('inicio')} 
+          currentRole={userProfile?.role} 
+          currentUserUid={user?.uid} 
+          onShowDialog={showDialog} 
+        />
+      );
       case 'ranking': return <Leaderboard users={allUsers} currentUserUid={user?.uid} onBack={() => setActiveScreen('explorar')} />;
       case 'info': 
         if (!gymInfo) {
@@ -298,18 +572,20 @@ export default function App() {
             </div>
           );
         }
-        return <GymInfo info={gymInfo} userProfile={userProfile} onBack={() => setActiveScreen('explorar')} />;
-      case 'rutinas': return <RoutineManager onBack={() => setActiveScreen('explorar')} />;
+        return <GymInfo info={gymInfo} userProfile={userProfile} onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />;
+      case 'rutinas': return <RoutineManager onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />;
       case 'explorar': return <Hub onNavigate={setActiveScreen} userProfile={userProfile} />;
       default: return (
         <Home 
           sessions={history} 
-          progress={progress}
+          progress={progress} 
           exercises={EXERCISES} 
           onNavigate={setActiveScreen}
           onStartRoutine={handleStartRoutine}
           assignedRoutines={userProfile?.assignedRoutines || []}
           gymInfo={gymInfo}
+          userProfile={userProfile}
+          onShowDialog={showDialog}
         />
       );
     }
@@ -321,8 +597,28 @@ export default function App() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Membership Access Gate Logic
+  const isMembershipExpired = () => {
+    if (!userProfile || userProfile.role !== 'trainee') return false;
+    if (!userProfile.subscription) return true;
+    return new Date(userProfile.subscription.endDate) < new Date();
+  };
+
+  const showMembershipGate = isMembershipExpired();
+
+  if (showMembershipGate && gymInfo) {
+    return (
+      <MembershipGate 
+        userProfile={userProfile!} 
+        onLogout={handleLogout} 
+        onBack={handleLogout}
+        plans={gymInfo.membershipPlans}
+      />
+    );
+  }
+
   return (
-    <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} userProfile={userProfile}>
+    <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} userProfile={userProfile} onLogout={handleLogout}>
       {renderScreen()}
 
       {/* Progress Overlays (Modals for Editing) */}
@@ -333,6 +629,7 @@ export default function App() {
           initialData={userProfile.assessment}
           onClose={() => setIsEditingAssessment(false)}
           onComplete={() => setIsEditingAssessment(false)}
+          onShowDialog={showDialog}
         />
       )}
 
@@ -385,7 +682,53 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Live Debug Timer (Pruebas - Solo en Desarrollo) */}
+      {import.meta.env.DEV && user && (
+        <div className="fixed top-0 left-0 right-0 z-[1001] flex justify-center pointer-events-none">
+          <div className="bg-background/80 backdrop-blur-md px-4 py-1 rounded-b-2xl border-x border-b border-outline-variant/10 shadow-xl flex items-center gap-2">
+            <span className="text-[8px] font-black uppercase tracking-widest text-outline">Sesión Restante:</span>
+            <span className={`font-headline font-black text-xs tabular-nums ${debugTimeLeft === '00:00' ? 'text-error' : 'text-secondary'}`}>
+              {debugTimeLeft}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Global Dialog Component */}
+      <Dialog 
+        {...dialogConfig} 
+        onClose={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))} 
+      />
+
+      {/* Session Warning Dialog — dedicated component, NOT dismissible by mouse/scroll */}
+      <SessionWarningDialog
+        isOpen={sessionWarning.show}
+        totalSeconds={sessionWarning.totalSeconds}
+        secondsLeft={sessionWarning.secondsLeft}
+        onKeepSession={() => {
+          const now = Date.now();
+          const nextNonce = Math.random().toString(36).substring(7);
+          
+          // MASTER GENERATIVE RESET
+          localStorage.setItem('kinetic_last_activity', now.toString());
+          localStorage.setItem('kinetic_session_nonce', nextNonce);
+          
+          lastActivityRef.current = now; 
+          sessionNonceRef.current = nextNonce; // Any OLD logouts from PREVIOUS tickets will be ignored
+          
+          hasShownTimeoutWarningRef.current = false;
+          setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+
+          // Force instant timer jump to full time
+          const timeoutMin = Number(gymInfoRef.current?.sessionTimeoutMinutes) || 30;
+          setDebugTimeLeft(`[NUEVO TICKET] ${timeoutMin}:00`);
+        }}
+        onLogout={() => {
+          hasShownTimeoutWarningRef.current = false;
+          setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+          handleLogoutRef.current();
+        }}
+      />
     </Layout>
   );
 }
-
