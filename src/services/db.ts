@@ -247,16 +247,29 @@ export const requestMembership = async (uid: string, planId: '1month' | '6months
 // Approve a pending membership (Admin)
 export const approveMembership = async (uid: string, planId: '1month' | '6months' | '1year') => {
   const userRef = getUserRef(uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) return;
   
+  const userData = snap.data() as UserProfile;
   const now = new Date();
-  const endDate = new Date(now);
+  let startDate = now;
+  
+  // Extension logic: if active, start from its end date
+  if (userData.subscription && userData.subscription.status === 'active') {
+    const currentEnd = new Date(userData.subscription.endDate);
+    if (currentEnd > now) {
+      startDate = currentEnd;
+    }
+  }
+
+  const endDate = new Date(startDate);
   if (planId === '1month') endDate.setMonth(endDate.getMonth() + 1);
   else if (planId === '6months') endDate.setMonth(endDate.getMonth() + 6);
   else if (planId === '1year') endDate.setFullYear(endDate.getFullYear() + 1);
 
   const subscription: SubscriptionData = {
     planId,
-    startDate: now.toISOString(),
+    startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
     status: 'active'
   };
@@ -268,12 +281,64 @@ export const approveMembership = async (uid: string, planId: '1month' | '6months
   });
 };
 
+// Cancel a membership (Admin)
+export const cancelMembership = async (uid: string, reason: string) => {
+  const userRef = getUserRef(uid);
+  const snap = await getDoc(userRef);
+  if (!snap.exists()) return;
+  
+  const userData = snap.data() as UserProfile;
+  if (!userData.subscription) return;
+
+  const now = new Date().toISOString();
+  const cancelledSub: SubscriptionData = {
+    ...userData.subscription,
+    status: 'canceled',
+    endDate: now,
+    cancelReason: reason
+  };
+
+  // Update history: find the matching active subscription and mark it
+  const history = userData.subscriptionHistory || [];
+  const updatedHistory = history.map(sub => {
+    if (sub.startDate === userData.subscription?.startDate && sub.planId === userData.subscription?.planId) {
+      return cancelledSub;
+    }
+    return sub;
+  });
+
+  await updateDoc(userRef, {
+    subscription: cancelledSub,
+    subscriptionHistory: updatedHistory,
+    membershipRequest: null // Clear any requests too
+  });
+};
+
 // Reject a membership request (Admin)
 export const rejectMembership = async (uid: string) => {
   const userRef = getUserRef(uid);
   await updateDoc(userRef, {
     'membershipRequest.status': 'rejected'
   });
+};
+
+// Global Maintenance: Clear all routines for all users (Admin only)
+export const clearAllRoutines = async () => {
+  const { writeBatch, collection, getDocs, deleteField } = await import('firebase/firestore');
+  const usersRef = collection(db, 'users');
+  const snap = await getDocs(usersRef);
+  
+  const batch = writeBatch(db);
+  snap.docs.forEach(userDoc => {
+    batch.update(userDoc.ref, { 
+      assignedRoutines: [],
+      // Clear session persistence fields if any
+      workoutState: deleteField(),
+      activeExercises: deleteField()
+    });
+  });
+  
+  await batch.commit();
 };
 
 // Generic Base64 Compressor to bypass Firebase Storage and fit in < 1MB limit

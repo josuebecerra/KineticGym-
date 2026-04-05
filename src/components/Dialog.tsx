@@ -11,7 +11,9 @@ export interface DialogConfig {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: () => void;
+  showInput?: boolean;
+  inputPlaceholder?: string;
+  onConfirm?: (inputValue?: string) => void;
   onCancel?: () => void;
 }
 
@@ -26,10 +28,18 @@ export const Dialog: React.FC<DialogProps> = ({
   message, 
   confirmText, 
   cancelText, 
+  showInput,
+  inputPlaceholder,
   onConfirm, 
   onCancel,
   onClose 
 }) => {
+  const [inputValue, setInputValue] = React.useState('');
+
+  React.useEffect(() => {
+    if (isOpen) setInputValue('');
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const getIcon = () => {
@@ -63,7 +73,7 @@ export const Dialog: React.FC<DialogProps> = ({
   };
 
   const handleConfirm = () => {
-    onConfirm?.();
+    onConfirm?.(inputValue);
     onClose();
   };
 
@@ -107,6 +117,20 @@ export const Dialog: React.FC<DialogProps> = ({
               {message}
             </p>
           </div>
+
+          {showInput && (
+            <div className="w-full relative group">
+              <div className="absolute inset-0 bg-secondary/5 rounded-2xl blur-lg group-focus-within:bg-secondary/10 transition-all" />
+              <input 
+                type="text"
+                autoFocus
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={inputPlaceholder || "Escribe el motivo..."}
+                className="relative w-full bg-surface-container-high border border-outline-variant/20 rounded-2xl px-5 py-4 text-sm font-bold text-white placeholder:text-outline-variant/40 focus:outline-none focus:border-secondary/40 focus:ring-1 focus:ring-secondary/20 transition-all uppercase tracking-widest"
+              />
+            </div>
+          )}
 
           <div className="flex gap-4 w-full mt-2">
             {(type === 'confirm' || cancelText) && (

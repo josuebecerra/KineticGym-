@@ -45,6 +45,7 @@ export interface SubscriptionData {
   startDate: string;
   endDate: string;
   status: 'active' | 'expired' | 'canceled';
+  cancelReason?: string;
 }
 
 export interface UserProfile {

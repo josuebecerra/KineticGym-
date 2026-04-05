@@ -182,24 +182,146 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     }
   };
 
+  const handleCancelSubscription = async (reason: string) => {
+    if (!selectedTrainee || !reason.trim()) return;
+    try {
+      const { cancelMembership } = await import('../services/db');
+      await cancelMembership(selectedTrainee.uid, reason);
+      
+      const now = new Date().toISOString();
+      const updatedSub: SubscriptionData = {
+        ...selectedTrainee.subscription!,
+        status: 'canceled',
+        endDate: now,
+        cancelReason: reason
+      };
+
+      const updatedHistory = (selectedTrainee.subscriptionHistory || []).map(sub => {
+        if (sub.startDate === selectedTrainee.subscription?.startDate) {
+          return updatedSub;
+        }
+        return sub;
+      });
+
+      const updatedTrainee = { 
+        ...selectedTrainee, 
+        subscription: updatedSub,
+        subscriptionHistory: updatedHistory,
+        membershipRequest: null 
+      };
+      
+      setSelectedTrainee(updatedTrainee);
+      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
+      
+      onShowDialog({
+        type: 'info',
+        title: 'PLAN CANCELADO',
+        message: 'La membresía ha sido revocada inmediatamente. El motivo ha quedado registrado en el historial.',
+        confirmText: 'ENTENDIDO'
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleApproveRequest = async (user: UserProfile) => {
     if (!user.membershipRequest) return;
     try {
-      const { approveMembership } = await import('../services/db');
-      await approveMembership(user.uid, user.membershipRequest.planId);
+      const planId = user.membershipRequest.planId;
+      const now = new Date();
+      let startDate = now;
       
-      // Update local state
-      setTrainees(prev => prev.map(t => t.uid === user.uid ? { ...t, subscription: { ...t.subscription!, status: 'active' }, membershipRequest: null } : t));
+      // Calculate dates locally for immediate state update
+      if (user.subscription && user.subscription.status === 'active') {
+        const currentEnd = new Date(user.subscription.endDate);
+        if (currentEnd > now) {
+          startDate = currentEnd;
+        }
+      }
+
+      const endDate = new Date(startDate);
+      if (planId === '1month') endDate.setMonth(endDate.getMonth() + 1);
+      else if (planId === '6months') endDate.setMonth(endDate.getMonth() + 6);
+      else if (planId === '1year') endDate.setFullYear(endDate.getFullYear() + 1);
+
+      const newSubscription: SubscriptionData = {
+        planId,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        status: 'active'
+      };
+
+      const { approveMembership } = await import('../services/db');
+      await approveMembership(user.uid, planId);
+      
+      // Update local state with calculated values & history
+      setTrainees(prev => prev.map(t => t.uid === user.uid ? { 
+        ...t, 
+        subscription: newSubscription, 
+        subscriptionHistory: [...(t.subscriptionHistory || []), newSubscription],
+        membershipRequest: null 
+      } : t));
       
       onShowDialog({
         type: 'success',
         title: 'MEMBRESÍA ACTIVADA',
-        message: `El plan de ${user.displayName} ha sido aprobado y activado con éxito.`,
+        message: `El plan de ${user.displayName} ha sido aprobado y activado con éxito. Inicia el ${startDate.toLocaleDateString()} y vence el ${endDate.toLocaleDateString()}.`,
         confirmText: 'EXCELENTE'
       });
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleRemoveRoutine = async (routineId: string) => {
+    if (!selectedTrainee) return;
+    try {
+      const { updateUserProfile } = await import('../services/db');
+      const updatedRoutines = (selectedTrainee.assignedRoutines || []).filter(r => r.id !== routineId);
+      await updateUserProfile(selectedTrainee.uid, { assignedRoutines: updatedRoutines });
+      
+      const updatedTrainee = { ...selectedTrainee, assignedRoutines: updatedRoutines };
+      setSelectedTrainee(updatedTrainee);
+      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
+      
+      onShowDialog({
+        type: 'info',
+        title: 'RUTINA ELIMINADA',
+        message: 'La rutina ha sido removida del perfil del alumno.',
+        confirmText: 'OK'
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleGlobalCleanup = async () => {
+    onShowDialog({
+      type: 'confirm',
+      title: '¿LIMPIEZA TOTAL?',
+      message: 'Esta acción borrará todas las rutinas asignadas a TODOS los clientes del sistema. Es una tarea de mantenimiento irreversible.',
+      confirmText: 'SÍ, BORRAR TODO',
+      onConfirm: async () => {
+        try {
+          const { clearAllRoutines } = await import('../services/db');
+          await clearAllRoutines();
+          onShowDialog({
+            type: 'success',
+            title: 'SISTEMA REINICIADO',
+            message: 'Se han eliminado todas las rutinas de todos los usuarios con éxito.',
+            confirmText: 'ENTENDIDO'
+          });
+          
+          await loadUsers(); // Refresh list
+          // CRITICAL: Update/Reset selected trainee to reflect clouds state
+          if (selectedTrainee) {
+            setSelectedTrainee(prev => prev ? { ...prev, assignedRoutines: [] } : null);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    });
   };
 
   const handleRejectRequest = async (user: UserProfile) => {
@@ -257,30 +379,39 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       className="px-6 pt-4 space-y-8 pb-32"
     >
       <header className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:bg-surface-container-highest transition-all active:scale-95">
-            <span className="material-symbols-outlined">arrow_back</span>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button onClick={onBack} className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:bg-surface-container-highest transition-all active:scale-95">
+            <span className="material-symbols-outlined text-xl sm:text-2xl">arrow_back</span>
           </button>
           <div className="flex-1">
-            <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none text-white">CENTRAL STAFF</h1>
-            <p className="text-[10px] font-black text-secondary uppercase tracking-[0.3em] mt-2">
+            <h1 className="font-headline text-2xl sm:text-4xl font-black tracking-tight uppercase italic leading-none text-white">CENTRAL STAFF</h1>
+            <p className="text-[9px] sm:text-[10px] font-black text-secondary uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-1 sm:mt-2">
               {currentRole === 'admin' ? 'Administración Global de Kinetic' : 'Gestión de Alumnos'}
             </p>
           </div>
+          {currentRole === 'admin' && !selectedTrainee && (
+            <button 
+              onClick={handleGlobalCleanup}
+              className="ml-auto w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center hover:bg-error/20 transition-all active:scale-95 border border-error/20"
+              title="Limpieza Global de Rutinas"
+            >
+              <span className="material-symbols-outlined text-xl">mop</span>
+            </button>
+          )}
         </div>
 
         {/* Search Bar */}
         {!selectedTrainee && (
-          <div className="relative group">
-            <div className="absolute inset-0 bg-secondary/5 rounded-3xl blur-xl group-focus-within:bg-secondary/10 transition-all" />
-            <div className="relative flex items-center bg-surface-container-low border border-outline-variant/10 rounded-3xl px-6 py-4 transition-all focus-within:border-secondary/30 focus-within:ring-1 focus-within:ring-secondary/20">
-              <span className="material-symbols-outlined text-outline group-focus-within:text-secondary transition-colors mr-3">search</span>
+          <div className="relative group mx-0.5">
+            <div className="absolute inset-0 bg-secondary/5 rounded-[24px] blur-xl group-focus-within:bg-secondary/10 transition-all" />
+            <div className="relative flex items-center bg-surface-container-low border border-outline-variant/10 rounded-[24px] px-5 py-3.5 sm:px-6 sm:py-4 transition-all focus-within:border-secondary/30 focus-within:ring-1 focus-within:ring-secondary/20">
+              <span className="material-symbols-outlined text-outline group-focus-within:text-secondary transition-colors mr-3 text-xl">search</span>
               <input 
                 type="text" 
-                placeholder={`Buscar en ${activeTab === 'trainee' ? 'clientes' : activeTab === 'trainer' ? 'coaches' : 'administradores'}...`}
+                placeholder={`Buscar...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent border-none focus:ring-0 text-sm font-bold text-white placeholder:text-outline/50 w-full uppercase tracking-widest"
+                className="bg-transparent border-none focus:ring-0 text-xs sm:text-sm font-bold text-white placeholder:text-outline/50 w-full uppercase tracking-widest"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-surface-container-high rounded-lg transition-colors">
@@ -293,31 +424,34 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
 
         {/* Tab Switcher */}
         {!selectedTrainee && currentRole === 'admin' && (
-          <div className="flex bg-surface-container-high/50 p-1.5 rounded-[24px] gap-1 overflow-x-auto no-scrollbar">
+          <div className="flex bg-surface-container-high/40 p-1.5 rounded-[28px] gap-1.5 mx-0.5 border border-outline-variant/5">
             {[
               { id: 'trainee', label: 'CLIENTES', icon: 'person' },
               { id: 'trainer', label: 'COACHES', icon: 'fitness_center' },
               { id: 'admin', label: 'ADMINS', icon: 'security' },
-              { id: 'requests', label: 'PENDIENTES', icon: 'notification_important' }
+              { id: 'requests', label: 'PENDIENTES', icon: 'notifications_active' }
             ].map(tab => {
               const hasRequests = tab.id === 'requests' && trainees.some(u => u.membershipRequest?.status === 'pending');
+              const isActive = activeTab === tab.id;
               
               return (
                 <button
                   key={tab.id}
                   onClick={() => { setActiveTab(tab.id as any); setSearchQuery(''); }}
-                  className={`flex-none sm:flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-[20px] text-[9px] font-black uppercase tracking-[0.2em] transition-all relative overflow-hidden ${
-                    activeTab === tab.id 
-                      ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20' 
-                      : 'text-outline hover:text-white hover:bg-white/5'
+                  className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-2 rounded-[22px] transition-all relative overflow-hidden active:scale-95 ${
+                    isActive 
+                      ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/15' 
+                      : 'text-outline-variant hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-sm">{tab.icon}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className={`material-symbols-outlined ${isActive ? 'scale-110' : 'opacity-70'} transition-transform`} style={{ fontSize: '20px' }}>
+                    {tab.icon}
+                  </span>
+                  <span className="hidden md:inline text-[9px] font-black uppercase tracking-[0.2em]">{tab.label}</span>
                   {hasRequests && (
-                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-error rounded-full animate-ping" />
+                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-error rounded-full border-2 border-surface-container-high animate-pulse" />
                   )}
-                  {activeTab === tab.id && (
+                  {isActive && (
                     <motion.div layoutId="activeTabBg" className="absolute inset-0 bg-secondary -z-10" />
                   )}
                 </button>
@@ -338,12 +472,14 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         </div>
       ) : !selectedTrainee ? (
         <section className="space-y-6">
-          <div className="flex justify-between items-center px-4">
-            <h3 className="text-[10px] font-black tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
-              <span className="w-6 h-px bg-outline-variant/30" />
+          <div className="flex justify-between items-center px-1 sm:px-4">
+            <h3 className="text-[9px] sm:text-[10px] font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
+              <span className="w-4 sm:w-6 h-px bg-outline-variant/30" />
               Directorio de {activeTab === 'trainee' ? 'Clientes' : activeTab === 'trainer' ? 'Staff' : 'Control'}
             </h3>
-            <span className="px-3 py-1 bg-surface-container-high rounded-full text-[9px] font-black text-secondary uppercase tracking-widest">{filteredUsers.length}</span>
+            <div className="bg-surface-container-high px-3 py-1 rounded-full border border-secondary/20 shadow-lg shadow-black/10">
+              <span className="text-[9px] font-black text-secondary tracking-widest">{filteredUsers.length}</span>
+            </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -480,6 +616,27 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                     <span className="px-3 py-1 bg-error/10 border border-error/20 rounded-full text-[9px] font-black uppercase tracking-widest text-error">Sin Entrenador</span>
                   )}
                 </div>
+
+                {/* Assigned Routines List (Individual Removal) */}
+                {selectedTrainee.assignedRoutines && selectedTrainee.assignedRoutines.length > 0 && (
+                  <div className="mt-4 space-y-3 pt-4 border-t border-outline-variant/10">
+                    <p className="text-[9px] font-black text-outline uppercase tracking-widest ml-1">Rutinas Asignadas:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTrainee.assignedRoutines.map((routine, idx) => (
+                        <div key={`${routine.id}-${idx}`} className="flex items-center gap-2 bg-surface-container-highest px-3 py-2 rounded-xl group/routine hover:bg-surface-container-high transition-colors border border-outline-variant/5">
+                          <span className="text-[10px] font-black text-on-surface uppercase tracking-tight italic">{routine.name}</span>
+                          <button 
+                            onClick={() => handleRemoveRoutine(routine.id)}
+                            className="w-5 h-5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-all flex items-center justify-center opacity-0 group-hover/routine:opacity-100"
+                            title="Eliminar de este perfil"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -577,6 +734,37 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                       </button>
                     ))}
                   </div>
+                  
+                  {selectedTrainee.subscription && selectedTrainee.subscription.status === 'active' && (
+                    <button
+                      onClick={() => {
+                        onShowDialog({
+                          type: 'confirm',
+                          title: '¿CANCELAR MEMBRESÍA?',
+                          message: 'Se revocará el acceso de forma inmediata. Debes ingresar una justificación técnica.',
+                          showInput: true,
+                          inputPlaceholder: "Motivo de la baja...",
+                          confirmText: 'PROCESAR BAJA',
+                          onConfirm: (val) => {
+                            if (!val || val.trim().length < 4) {
+                              onShowDialog({
+                                type: 'error',
+                                title: 'JUSTIFICACIÓN REQUERIDA',
+                                message: 'Es obligatorio ingresar un motivo válido para autorizar la cancelación.',
+                                confirmText: 'REINTENTAR'
+                              });
+                              return;
+                            }
+                            handleCancelSubscription(val);
+                          }
+                        });
+                      }}
+                      className="w-full py-4 rounded-xl border-2 border-error/20 text-error text-[10px] font-black uppercase tracking-widest hover:bg-error/5 transition-all mt-2"
+                    >
+                      <span className="material-symbols-outlined text-sm align-middle mr-2">cancel</span>
+                      Cancelar Plan Vigente
+                    </button>
+                  )}
                 </div>
 
                 {/* History List */}
@@ -587,8 +775,14 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                       {(selectedTrainee.subscriptionHistory || []).slice().reverse().map((sub, idx) => (
                         <div key={idx} className="bg-surface-container-low border border-outline-variant/10 p-3 rounded-xl flex justify-between items-center opacity-70 hover:opacity-100 transition-opacity">
                           <div>
-                            <p className="text-[8px] font-black text-on-surface uppercase tracking-tight">Plan {sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}</p>
+                            <p className="text-[8px] font-black text-on-surface uppercase tracking-tight">
+                              Plan {sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}
+                              {sub.status === 'canceled' && <span className="ml-2 text-error font-black italic">[CANCELADO]</span>}
+                            </p>
                             <p className="text-[7px] font-bold text-outline uppercase mt-0.5">{new Date(sub.startDate).toLocaleDateString()} - {new Date(sub.endDate).toLocaleDateString()}</p>
+                            {sub.cancelReason && (
+                              <p className="text-[7px] font-black text-error/60 uppercase mt-1 italic leading-relaxed">Motivo: {sub.cancelReason}</p>
+                            )}
                           </div>
                           <span className="text-[7px] font-black text-outline-variant uppercase bg-surface-container-highest px-2 py-1 rounded-full">Registro #{selectedTrainee.subscriptionHistory!.length - idx}</span>
                         </div>
@@ -633,45 +827,59 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           )}
 
           {/* Routine Assignment Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.3em]">Catálogo de Entrenamiento</h4>
-              <span className="text-[9px] font-bold text-outline-variant uppercase">Asignar para Hoy</span>
-            </div>
+          {(currentRole === 'admin' || (currentRole === 'trainer' && selectedTrainee.trainerId === currentUserUid)) ? (
             <div className="space-y-4">
-              {ROUTINES.map(routine => (
-                <div key={routine.id} className="bg-surface-container-high rounded-3xl p-6 border border-outline-variant/10 group hover:border-primary-container/30 transition-all shadow-sm">
-                  <div className="flex justify-between items-start mb-4 gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
-                          {routine.level}
-                        </span>
+              <div className="flex items-center justify-between px-2">
+                <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.3em]">Catálogo de Entrenamiento</h4>
+                <span className="text-[9px] font-bold text-outline-variant uppercase">Asignar para Hoy</span>
+              </div>
+              <div className="space-y-4">
+                {ROUTINES.map(routine => (
+                  <div key={routine.id} className="bg-surface-container-high rounded-3xl p-6 border border-outline-variant/10 group hover:border-primary-container/30 transition-all shadow-sm">
+                    <div className="flex justify-between items-start mb-4 gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
+                            {routine.level}
+                          </span>
+                        </div>
+                        <h3 className={`font-headline text-2xl font-black uppercase tracking-tight italic leading-none mb-2 ${getTitleColor(routine.level)} group-hover:text-primary-container transition-colors`}>
+                          {routine.name}
+                        </h3>
+                        <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-1 opacity-60">{routine.description}</p>
                       </div>
-                      <h3 className={`font-headline text-2xl font-black uppercase tracking-tight italic leading-none mb-2 ${getTitleColor(routine.level)} group-hover:text-primary-container transition-colors`}>
-                        {routine.name}
-                      </h3>
-                      <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-1 opacity-60">{routine.description}</p>
+                      <button 
+                        onClick={() => handleAssign(routine)}
+                        className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl hover:scale-105 active:scale-[0.98] transition-all shrink-0 shadow-lg shadow-primary-container/10"
+                      >
+                        Asignar Plan
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => handleAssign(routine)}
-                      className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl hover:scale-105 active:scale-[0.98] transition-all shrink-0 shadow-lg shadow-primary-container/10"
-                    >
-                      Asignar Plan
-                    </button>
+                    <div className="flex items-center gap-4 text-outline text-[9px] font-black uppercase tracking-[0.3em] pt-4 border-t border-outline-variant/5">
+                      <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
+                        <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> {routine.exercisesCount} Bloques
+                      </span>
+                      <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
+                        <span className="material-symbols-outlined text-sm opacity-50">category</span> {routine.category}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-outline text-[9px] font-black uppercase tracking-[0.3em] pt-4 border-t border-outline-variant/5">
-                    <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
-                      <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> {routine.exercisesCount} Bloques
-                    </span>
-                    <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
-                      <span className="material-symbols-outlined text-sm opacity-50">category</span> {routine.category}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-surface-container-high/30 rounded-[40px] p-8 border-2 border-dashed border-outline-variant/10 text-center space-y-4">
+              <div className="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center mx-auto">
+                <span className="material-symbols-outlined text-3xl text-outline-variant/50">lock</span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-on-surface uppercase tracking-[0.3em]">Acceso Restringido</p>
+                <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed">
+                  Solo el Entrenador designado ({selectedTrainee.trainerName || 'N/A'}) <br /> puede asignar rutinas a este alumno.
+                </p>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </motion.div>
