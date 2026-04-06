@@ -522,7 +522,7 @@ export default function App() {
         />
       );
       case 'historial': return <History sessions={history} onDeleteSession={handleDeleteSession} onShowDialog={showDialog} />;
-      case 'descanso': return <Rest restState={restState} setRestState={setRestState} />;
+      case 'descanso': return <Rest restState={restState} setRestState={setRestState} onBack={() => setActiveScreen('entrenar')} />;
       case 'ejercicios': return <Exercises onBack={() => setActiveScreen('explorar')} />;
       case 'progreso': return (
         <Progress 

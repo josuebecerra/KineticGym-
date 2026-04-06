@@ -5,9 +5,10 @@ import { RestState } from '../types';
 interface RestProps {
   restState: RestState;
   setRestState: React.Dispatch<React.SetStateAction<RestState>>;
+  onBack?: () => void;
 }
 
-export const Rest: React.FC<RestProps> = ({ restState, setRestState }) => {
+export const Rest: React.FC<RestProps> = ({ restState, setRestState, onBack }) => {
   const { timeLeft, totalTime, isActive } = restState;
 
   const formatTime = (seconds: number) => {
@@ -44,7 +45,7 @@ export const Rest: React.FC<RestProps> = ({ restState, setRestState }) => {
   };
 
   // SVG Ring calculation
-  const radius = 48;
+  const radius = 43; // Radios menores previenen el recorte en los bordes del viewBox
   const circumference = 2 * Math.PI * radius;
   const percentage = (totalTime && totalTime > 0) ? (timeLeft / totalTime) * 100 : 0;
   const offset = circumference - (percentage / 100) * circumference;
@@ -93,12 +94,12 @@ export const Rest: React.FC<RestProps> = ({ restState, setRestState }) => {
             <circle 
               className="text-surface-container-highest/30" 
               cx="50" cy="50" fill="none" r={radius} 
-              stroke="currentColor" strokeWidth="2.5" 
+              stroke="var(--color-surface-container-highest, #262626)" strokeWidth="3" 
             />
             <motion.circle 
-              className="text-secondary" 
+              className="text-secondary drop-shadow-[0_0_8px_rgba(255,116,65,0.4)]" 
               cx="50" cy="50" fill="none" r={radius} 
-              stroke="currentColor" strokeWidth="3" 
+              stroke="var(--color-secondary, #ff7441)" strokeWidth="4" 
               strokeDasharray={circumference}
               animate={{ strokeDashoffset: offset }}
               transition={{ ease: "linear", duration: 1 }}
@@ -244,6 +245,23 @@ export const Rest: React.FC<RestProps> = ({ restState, setRestState }) => {
           </div>
         </motion.div>
       </div>
+
+      {/* Action Button */}
+      {onBack && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mt-12 flex justify-center w-full z-20"
+        >
+          <button 
+            onClick={onBack}
+            className="w-full max-w-md bg-secondary text-on-secondary font-headline font-black uppercase tracking-widest text-[12px] py-5 rounded-[24px] shadow-xl active:scale-95 transition-all shadow-secondary/20"
+          >
+            VOLVER AL ENTRENAMIENTO
+          </button>
+        </motion.div>
+      )}
     </motion.div>
   );
 };
