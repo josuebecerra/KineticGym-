@@ -329,14 +329,14 @@ export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplet
       >
         {/* Navigation & Progress Header */}
         {step !== 'welcome' && step !== 'success' && (
-          <div className="px-8 pt-8 pb-4 shrink-0 bg-surface-container">
+          <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 bg-surface-container">
             <div className="flex items-center justify-between mb-8">
               <button 
                 onClick={prevStep}
-                className="flex items-center gap-2 text-[10px] font-black uppercase text-outline hover:text-secondary transition-colors"
+                className="flex items-center gap-1.5 text-[9px] sm:text-[10px] font-black uppercase text-outline hover:text-secondary transition-colors"
                 id="back-btn"
               >
-                <span className="material-symbols-outlined text-sm">arrow_back</span>
+                <span className="material-symbols-outlined text-xs sm:text-sm">arrow_back</span>
                 Volver
               </button>
               
@@ -350,8 +350,8 @@ export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplet
               )}
 
               {!onClose && (
-                <div className="text-[10px] font-black uppercase text-outline tracking-widest opacity-50">
-                  Pregunta {currentStepIndex + 1} de {steps.length}
+                <div className="text-[9px] sm:text-[10px] font-black uppercase text-outline tracking-widest opacity-50">
+                  {currentStepIndex + 1} / {steps.length}
                 </div>
               )}
             </div>
@@ -369,8 +369,8 @@ export const Assessment: React.FC<AssessmentProps> = ({ uid, userName, onComplet
                 const isActive = idx <= currentStepIndex;
                 const isCurrent = idx === currentStepIndex;
                 return (
-                  <div key={idx} className="flex flex-col items-center gap-3 relative z-10">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs transition-all duration-500 scale-90 ${
+                  <div key={idx} className="flex flex-col items-center gap-2 sm:gap-3 relative z-10">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-black text-[10px] sm:text-xs transition-all duration-500 scale-90 ${
                       isCurrent ? 'bg-secondary text-on-secondary scale-110 shadow-lg shadow-secondary/20 ring-4 ring-secondary/20' : 
                       isActive ? 'bg-secondary text-on-secondary' : 'bg-surface-container-highest text-outline border border-outline-variant'
                     }`}>

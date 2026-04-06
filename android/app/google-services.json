@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "119582380691",
+    "project_id": "kinetic-647bb",
+    "storage_bucket": "kinetic-647bb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119582380691:android:e18c14f7e9ac49c0cbf366",
+        "android_client_info": {
+          "package_name": "com.kinetic.gym"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "119582380691-adqoteb4dau5asr0t923h3s34outdjp3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kinetic.gym",
+            "certificate_hash": "86156a276e542ec8d8706888257f5fe67be78927"
+          }
+        },
+        {
+          "client_id": "119582380691-iimqn0jcdv3np07ngsgsvcf3931h81hb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPDMgFhqHuRNIh2rnJY66m9Uv_buqac0U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "119582380691-iimqn0jcdv3np07ngsgsvcf3931h81hb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "119582380691-kbk8uf7msgepde1qkibpqnbtjbrqp9lg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kinetic.gym",
+                "app_store_id": "6685975"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

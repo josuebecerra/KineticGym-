@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kinetic Gym</string>
+    <string name="title_activity_main">Kinetic Gym</string>
+    <string name="package_name">com.kinetic.gym</string>
+    <string name="custom_url_scheme">com.kinetic.gym</string>
+</resources>

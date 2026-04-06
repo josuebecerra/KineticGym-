@@ -71,7 +71,7 @@ export const Home: React.FC<HomeProps> = ({
         <div className="flex justify-between items-start">
           <div>
             <p className="text-secondary font-headline font-black text-[10px] uppercase tracking-[0.2em]">{userProfile?.role === 'admin' ? 'PANEL ADMINISTRATIVO' : 'SISTEMA KINETIC v1.0'}</p>
-            <h1 className="font-headline text-4xl font-black tracking-tight uppercase italic leading-none text-white">
+            <h1 className="font-headline text-3xl sm:text-4xl font-black tracking-tight uppercase italic leading-none text-white mt-1">
               {userProfile?.role === 'admin' ? 'HOLA, ' : 'BIENVENIDO, '}
               <span className="text-secondary">{userProfile?.displayName?.split(' ')[0] || 'GUERRERO'}</span>
             </h1>
@@ -136,12 +136,12 @@ export const Home: React.FC<HomeProps> = ({
           <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/5 rounded-bl-full -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
           
           <div className="flex items-start gap-5 relative z-10">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-colors ${
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-colors ${
               latestNews.type === 'alert' ? 'bg-error/10 border-error/20 text-error' : 
               latestNews.type === 'promo' ? 'bg-secondary/10 border-secondary/20 text-secondary' : 
               'bg-primary-container/10 border-primary-container/20 text-primary-container'
             }`}>
-              <span className="material-symbols-outlined font-black">
+              <span className="material-symbols-outlined font-black text-xl sm:text-2xl">
                 {latestNews.type === 'alert' ? 'warning' : latestNews.type === 'promo' ? 'campaign' : 'info'}
               </span>
             </div>
@@ -173,8 +173,8 @@ export const Home: React.FC<HomeProps> = ({
           whileTap={{ scale: 0.98 }}
           className="col-span-2 bg-surface-container-high rounded-[32px] p-8 relative overflow-hidden group cursor-pointer border border-outline-variant/5 shadow-xl"
         >
-          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-            <span className="material-symbols-outlined text-[120px]">analytics</span>
+          <div className="absolute top-0 right-0 p-4 sm:p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+            <span className="material-symbols-outlined text-[80px] sm:text-[120px]">analytics</span>
           </div>
           <div className="relative z-10 flex flex-col h-full justify-between gap-8">
             <div className="flex justify-between items-start">
@@ -184,8 +184,8 @@ export const Home: React.FC<HomeProps> = ({
               <span className="text-secondary font-headline text-4xl font-black italic">{Math.round(activityPercentage)}%</span>
             </div>
             <div>
-              <h2 className="text-on-surface-variant font-black text-[10px] uppercase tracking-[0.2em] mb-2">Actividad de la Semana</h2>
-              <p className="font-headline text-3xl font-black leading-none uppercase italic">{weeklySessions} de {weeklyTarget} <span className="text-sm font-bold text-outline uppercase not-italic">Entrenamientos</span></p>
+              <h2 className="text-on-surface-variant font-black text-[9px] sm:text-[10px] uppercase tracking-[0.2em] mb-2">Actividad de la Semana</h2>
+              <p className="font-headline text-2xl sm:text-3xl font-black leading-none uppercase italic">{weeklySessions} de {weeklyTarget} <span className="text-[10px] sm:text-sm font-bold text-outline uppercase not-italic">Entrenamientos</span></p>
               <div className="mt-6 flex gap-1.5 h-2.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
                 {Array.from({ length: weeklyTarget }).map((_, i) => (
                   <div 

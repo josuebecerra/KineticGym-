@@ -26,11 +26,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
   return (
     <div className="min-h-screen flex flex-col">
       {/* Top Header & Desktop Nav */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant/10">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant/10" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
         <div className="flex justify-between items-center px-6 py-4 max-w-5xl mx-auto w-full">
           {/* Logo */}
-          <div className="flex items-center gap-8">
-            <span className="font-headline font-black italic text-primary-container tracking-tighter text-2xl">KINETIC</span>
+          <div className="flex items-center gap-3 sm:gap-8">
+            <span className="font-headline font-black italic text-primary-container tracking-tighter text-xl sm:text-2xl">KINETIC</span>
             
             {/* Nav - Desktop Only */}
             <nav className="hidden md:flex items-center gap-8">
@@ -98,10 +98,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
             )}
             <button 
               onClick={handleSignOut}
-              className="active:scale-[0.98] transition-transform text-outline hover:text-error flex items-center justify-center w-10 h-10 ml-2 group"
+              className="active:scale-[0.98] transition-transform text-outline hover:text-error flex items-center justify-center min-w-[40px] h-10 ml-1 group"
               title="Cerrar sesión"
             >
-              <span className="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">logout</span>
+              <span className="material-symbols-outlined text-xl sm:text-2xl group-hover:scale-110 transition-transform">logout</span>
+              {/* Optional: Hide text on mobile if it exists in user's version */}
             </button>
           </div>
         </div>
@@ -113,8 +114,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
       </main>
 
       {/* Bottom Nav - Mobile Only */}
-      <nav className="md:hidden fixed bottom-0 w-full z-50 rounded-t-[32px] glass-nav border-t border-outline-variant/15 shadow-[0px_-20px_40px_rgba(0,0,0,0.4)]">
-        <div className="flex justify-around items-center h-20 pb-safe px-4 max-w-5xl mx-auto">
+      <nav 
+        className="md:hidden fixed bottom-0 w-full z-40 rounded-t-[32px] glass-nav border-t border-outline-variant/15 shadow-[0px_-20px_40px_rgba(0,0,0,0.4)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="flex justify-around items-center h-20 px-4 max-w-5xl mx-auto">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -125,12 +129,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
               )}
             >
               <span 
-                className="material-symbols-outlined"
+                className="material-symbols-outlined text-[20px] sm:text-[24px]"
                 style={{ fontVariationSettings: `'FILL' ${activeScreen === item.id ? 1 : 0}` }}
               >
                 {item.icon}
               </span>
-              <span className="font-body text-[10px] font-medium uppercase tracking-widest mt-1">
+              <span className="font-body text-[8px] sm:text-[10px] font-bold uppercase tracking-wider mt-1 truncate max-w-full px-1">
                 {item.label}
               </span>
             </button>

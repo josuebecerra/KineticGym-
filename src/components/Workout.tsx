@@ -559,12 +559,12 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           </button>
           <h1 className="font-headline text-2xl font-black tracking-tight text-primary-container uppercase truncate">{workoutState.selectedRoutine?.name || 'SESIÓN LIBRE'}</h1>
         </div>
-        <div className="flex items-center justify-between">
-          <p className="text-on-surface-variant font-medium tracking-wide flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">location_on</span> GIMNASIO CENTRAL
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-on-surface-variant font-medium tracking-wide flex items-center gap-2 text-xs sm:text-base">
+            <span className="material-symbols-outlined text-sm">location_on</span> KINETIC GYM
           </p>
-          <div className="bg-surface-container-high px-4 py-2 rounded-xl border-l-4 border-secondary shadow-lg">
-            <p className="font-headline text-2xl font-bold tabular-nums">{formatTime(elapsedSeconds)}</p>
+          <div className="bg-surface-container-high px-3 sm:px-4 py-2 rounded-xl border-l-4 border-secondary shadow-lg shrink-0">
+            <p className="font-headline text-xl sm:text-2xl font-bold tabular-nums leading-none">{formatTime(elapsedSeconds)}</p>
           </div>
         </div>
       </section>
@@ -653,19 +653,19 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
             </div>
             
             <div className="p-4 space-y-3">
-              <div className="grid grid-cols-12 gap-2 text-[9px] font-black tracking-widest text-outline uppercase px-2 mb-1">
-                <div className="col-span-1 text-center">SET</div>
-                <div className="col-span-4 text-center">PESO (KG)</div>
+              <div className="grid grid-cols-12 gap-1 sm:gap-2 text-[8px] sm:text-[9px] font-black tracking-widest text-outline uppercase px-2 mb-1">
+                <div className="col-span-1 text-center">#</div>
+                <div className="col-span-4 text-center">KG</div>
                 <div className="col-span-4 text-center">REPS</div>
                 <div className="col-span-3"></div>
               </div>
               
               {exercise.sets.map((set, setIndex) => (
-                <div key={set.id} className={`grid grid-cols-12 gap-2 items-center p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary-container/20' : 'bg-surface-container-highest'}`}>
-                  <div className="col-span-1 text-center font-headline font-bold text-on-surface-variant">{setIndex + 1}</div>
+                <div key={set.id} className={`grid grid-cols-12 gap-1 sm:gap-2 items-center p-1.5 sm:p-2 rounded-lg transition-colors ${set.completed ? 'bg-primary-container/20' : 'bg-surface-container-highest'}`}>
+                  <div className="col-span-1 text-center font-headline font-bold text-on-surface-variant text-xs">{setIndex + 1}</div>
                   <div className="col-span-4">
                     <input 
-                      className="w-full bg-surface-container-low border-none rounded-lg text-center font-headline font-bold text-on-surface focus:ring-1 focus:ring-primary-container py-2" 
+                      className="w-full bg-surface-container-low border-none rounded-lg text-center font-headline font-bold text-on-surface focus:ring-1 focus:ring-primary-container py-1.5 sm:py-2 text-sm" 
                       type="number" 
                       value={set.weight || ''} 
                       onChange={(e) => updateSet(exercise.id, set.id, 'weight', parseFloat(e.target.value) || 0)}
@@ -674,14 +674,14 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                   </div>
                   <div className="col-span-4">
                     <input 
-                      className="w-full bg-surface-container-low border-none rounded-lg text-center font-headline font-bold text-on-surface focus:ring-1 focus:ring-primary-container py-2" 
+                      className="w-full bg-surface-container-low border-none rounded-lg text-center font-headline font-bold text-on-surface focus:ring-1 focus:ring-primary-container py-1.5 sm:py-2 text-sm" 
                       type="number" 
                       value={set.reps || ''} 
                       onChange={(e) => updateSet(exercise.id, set.id, 'reps', parseInt(e.target.value) || 0)}
                       placeholder="0"
                     />
                   </div>
-                  <div className="col-span-3 flex justify-end gap-1">
+                  <div className="col-span-3 flex justify-end">
                     <button 
                       onClick={() => {
                         const newCompleted = !set.completed;
@@ -691,7 +691,7 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                           onScreenChange('descanso');
                         }
                       }}
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${set.completed ? 'bg-primary-container text-on-primary-container' : 'bg-outline-variant/20 text-outline'} active:scale-90`}
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all ${set.completed ? 'bg-primary-container text-on-primary-container' : 'bg-outline-variant/20 text-outline'} active:scale-90`}
                     >
                       <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: set.completed ? "'FILL' 1" : "'FILL' 0" }}>check_circle</span>
                     </button>

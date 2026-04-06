@@ -22,6 +22,9 @@ import { initializeUser, listenToUserData, saveWorkoutSession, deleteWorkoutSess
 import { Dialog, DialogConfig } from './components/Dialog';
 import { SessionWarningDialog } from './components/SessionWarningDialog';
 import { MembershipGate } from './components/MembershipGate';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Haptics, NotificationType } from '@capacitor/haptics';
+import { Capacitor } from '@capacitor/core';
 
 
 
@@ -125,6 +128,14 @@ export default function App() {
   useEffect(() => { workoutActiveRef.current = workoutState.isActive; }, [workoutState.isActive]);
   useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { handleLogoutRef.current = handleLogout; });
+
+  // Native Mobile Initialization
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: Style.Dark });
+      StatusBar.setBackgroundColor({ color: '#0e0e0e' });
+    }
+  }, []);
 
   // Activity Tracking — mounted ONCE, reads dynamic values via stable refs
   useEffect(() => {
@@ -260,6 +271,9 @@ export default function App() {
         setRestState(prev => {
           if (prev.timeLeft <= 1) {
             playNotificationSound();
+            if (Capacitor.isNativePlatform()) {
+              Haptics.notification({ type: NotificationType.Success });
+            }
             return { ...prev, timeLeft: 0, isActive: false };
           }
           return { ...prev, timeLeft: prev.timeLeft - 1 };
