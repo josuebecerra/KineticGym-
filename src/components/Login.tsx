@@ -21,6 +21,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Verificación segura para web
+  const isNative = typeof window !== 'undefined' && Capacitor?.isNativePlatform?.();
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -81,7 +84,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 relative overflow-hidden">
+    <div 
+      className="min-h-screen bg-background flex flex-col items-center justify-center px-6 relative overflow-hidden"
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 24px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 24px)'
+      }}
+    >
       {/* Background Decorative Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[120px] rounded-full" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 blur-[120px] rounded-full" />
@@ -155,7 +164,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </form>
 
         {/* Separador - Solo Web */}
-        {!Capacitor.isNativePlatform() && (
+        {!isNative && (
           <div className="flex items-center gap-4">
             <div className="h-[1px] flex-1 bg-outline-variant/20" />
             <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">O accede rápidamente con</span>
@@ -164,7 +173,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         )}
 
         {/* Social Login: Google - Solo Web */}
-        {!Capacitor.isNativePlatform() && (
+        {!isNative && (
           <Button 
             type="button"
             onClick={handleGoogleSignIn}

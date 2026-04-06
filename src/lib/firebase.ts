@@ -18,7 +18,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 let firebaseAuth;
-if (Capacitor.isNativePlatform()) {
+const isNative = typeof window !== 'undefined' && Capacitor?.isNativePlatform?.();
+
+if (isNative) {
   firebaseAuth = initializeAuth(app, {
     persistence: [indexedDBLocalPersistence, browserLocalPersistence]
   });

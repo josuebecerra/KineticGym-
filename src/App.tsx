@@ -651,7 +651,8 @@ export default function App() {
       {workoutState.isActive && activeScreen !== 'entrenar' && (
         <div 
           onClick={() => setActiveScreen('entrenar')}
-          className="fixed bottom-28 md:bottom-12 right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
+          className="fixed right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
+          style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="absolute inset-0 bg-secondary/5 group-hover:bg-secondary/10 transition-colors" />
           
@@ -676,7 +677,8 @@ export default function App() {
       {restState.isActive && activeScreen !== 'descanso' && (
         <div 
           onClick={() => setActiveScreen('descanso')}
-          className="fixed bottom-48 md:bottom-32 right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
+          className="fixed right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
+          style={{ bottom: 'calc(12rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="absolute inset-0 bg-secondary/10 group-hover:bg-secondary/20 transition-colors animate-pulse" />
           
