@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
+import { Capacitor } from '@capacitor/core';
 import { auth, googleProvider } from '../lib/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -153,32 +154,36 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
         </form>
 
-        {/* Separador */}
-        <div className="flex items-center gap-4">
-          <div className="h-[1px] flex-1 bg-outline-variant/20" />
-          <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">O accede rápidamente con</span>
-          <div className="h-[1px] flex-1 bg-outline-variant/20" />
-        </div>
+        {/* Separador - Solo Web */}
+        {!Capacitor.isNativePlatform() && (
+          <div className="flex items-center gap-4">
+            <div className="h-[1px] flex-1 bg-outline-variant/20" />
+            <span className="text-[10px] font-bold text-outline-variant uppercase tracking-widest">O accede rápidamente con</span>
+            <div className="h-[1px] flex-1 bg-outline-variant/20" />
+          </div>
+        )}
 
-        {/* Social Login: Google */}
-        <Button 
-          type="button"
-          onClick={handleGoogleSignIn}
-          variant="surface"
-          isLoading={isLoading}
-          loadingText="Conectando con Google..."
-          className="w-full relative overflow-hidden group py-4 flex items-center justify-center gap-4 hover:border-primary-container/50 transition-all"
-        >
-          {!isLoading && (
-            <>
-              <div className="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-              <img src="https://www.cdnlogo.com/logos/g/35/google-icon.svg" alt="Google" className="w-6 h-6 z-10" />
-              <span className="font-label font-bold text-on-surface tracking-wider z-10">
-                Continuar con Google
-              </span>
-            </>
-          )}
-        </Button>
+        {/* Social Login: Google - Solo Web */}
+        {!Capacitor.isNativePlatform() && (
+          <Button 
+            type="button"
+            onClick={handleGoogleSignIn}
+            variant="surface"
+            isLoading={isLoading}
+            loadingText="Conectando con Google..."
+            className="w-full relative overflow-hidden group py-4 flex items-center justify-center gap-4 hover:border-primary-container/50 transition-all"
+          >
+            {!isLoading && (
+              <>
+                <div className="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                <img src="https://www.cdnlogo.com/logos/g/35/google-icon.svg" alt="Google" className="w-6 h-6 z-10" />
+                <span className="font-label font-bold text-on-surface tracking-wider z-10">
+                  Continuar con Google
+                </span>
+              </>
+            )}
+          </Button>
+        )}
       </motion.div>
     </div>
   );
