@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Routine, Exercise } from '../types';
+import { Routine, Exercise, UserProfile } from '../types';
 import { ROUTINES, EXERCISES, getLevelColor, getTitleColor } from '../constants';
 import { DialogConfig } from './Dialog';
 
 interface RoutineManagerProps {
+  profile: UserProfile;
   onBack: () => void;
   onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
@@ -12,7 +13,7 @@ interface RoutineManagerProps {
 const MUSCLE_CATEGORIES = ['TODOS', 'PECHO', 'ESPALDA', 'PIERNAS', 'HOMBROS', 'BRAZOS', 'CORE'];
 const ROUTINE_CATEGORIES = ['FULL BODY', 'EMPUJE', 'TRACCIÓN', 'PIERNAS', 'TORSO', 'BRAZOS', 'CORE', 'GLÚTEOS'];
 
-export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDialog }) => {
+export const RoutineManager: React.FC<RoutineManagerProps> = ({ profile, onBack, onShowDialog }) => {
   const [localRoutines, setLocalRoutines] = useState<Routine[]>(ROUTINES);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -131,7 +132,21 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDi
     }
 
     if (editingId) {
-      // UPDATE EXISTING
+      // UPDATE EXISTING - Check permission
+      const routineToUpdate = localRoutines.find(r => r.id === editingId);
+      const isOwner = routineToUpdate?.authorId === profile.uid;
+      const isAdmin = profile.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        onShowDialog({
+          type: 'error',
+          title: 'ACCESO DENEGADO',
+          message: 'No tienes permisos para modificar esta rutina. Solo el autor o un administrador pueden editarla.',
+          confirmText: 'ENTENDIDO'
+        });
+        return;
+      }
+
       const updatedRoutines = localRoutines.map(r => 
         r.id === editingId 
           ? { ...r, ...newRoutine, exercisesCount: newRoutine.defaultExercises?.length || 0 } as Routine
@@ -143,7 +158,9 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDi
       const fullRoutine: Routine = {
         ...newRoutine as Routine,
         id: `r-custom-${Date.now()}`,
-        exercisesCount: newRoutine.defaultExercises?.length || 0
+        exercisesCount: newRoutine.defaultExercises?.length || 0,
+        authorId: profile.uid,
+        authorName: profile.displayName || 'Entrenador'
       };
       setLocalRoutines([fullRoutine, ...localRoutines]);
     }
@@ -151,6 +168,32 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDi
     setIsCreating(false);
     setEditingId(null);
     setNewRoutine({ name: '', description: '', level: 'Principiante', category: 'FULL BODY', defaultExercises: [] });
+  };
+
+  const handleDeleteRoutine = (routine: Routine) => {
+    const isOwner = routine.authorId === profile.uid;
+    const isAdmin = profile.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      onShowDialog({
+        type: 'error',
+        title: 'ACCESO DENEGADO',
+        message: 'No puedes eliminar rutinas que no te pertenecen.',
+        confirmText: 'ENTENDIDO'
+      });
+      return;
+    }
+
+    onShowDialog({
+      type: 'confirm',
+      title: '¿ELIMINAR RUTINA?',
+      message: `¿Estás seguro de eliminar "${routine.name}" de la biblioteca?`,
+      confirmText: 'SÍ, ELIMINAR',
+      cancelText: 'CANCELAR',
+      onConfirm: () => {
+        setLocalRoutines(prev => prev.filter(r => r.id !== routine.id));
+      }
+    });
   };
 
   return (
@@ -212,12 +255,24 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDi
                   </h3>
                 </div>
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleOpenEdit(routine)}
-                    className="w-12 h-12 rounded-2xl bg-surface-container-highest/40 text-outline hover:text-secondary flex items-center justify-center transition-all shadow-lg"
-                  >
-                    <span className="material-symbols-outlined text-xl">edit</span>
-                  </button>
+                  {(routine.authorId === profile.uid || profile.role === 'admin') && (
+                    <>
+                      <button 
+                        onClick={() => handleDeleteRoutine(routine)}
+                        className="w-12 h-12 rounded-2xl bg-error/10 text-error hover:bg-error hover:text-on-error flex items-center justify-center transition-all shadow-lg"
+                        title="Eliminar rutina"
+                      >
+                        <span className="material-symbols-outlined text-xl">delete</span>
+                      </button>
+                      <button 
+                        onClick={() => handleOpenEdit(routine)}
+                        className="w-12 h-12 rounded-2xl bg-surface-container-highest/40 text-outline hover:text-secondary flex items-center justify-center transition-all shadow-lg"
+                        title="Editar rutina"
+                      >
+                        <span className="material-symbols-outlined text-xl">edit</span>
+                      </button>
+                    </>
+                  )}
                   <button 
                     onClick={() => setSelectedRoutine(selectedRoutine?.id === routine.id ? null : routine)}
                     className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-lg ${selectedRoutine?.id === routine.id ? 'bg-secondary text-on-secondary' : 'bg-surface-container-highest/40 text-outline hover:text-secondary'}`}
@@ -226,6 +281,13 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({ onBack, onShowDi
                   </button>
                 </div>
               </div>
+
+              {routine.authorName && (
+                <div className="flex items-center gap-1.5 mb-3">
+                   <span className="material-symbols-outlined text-[10px] text-outline">history_edu</span>
+                   <span className="text-[7px] font-black text-outline uppercase tracking-widest">Creada por {routine.authorName}</span>
+                </div>
+              )}
               
               <p className="text-[11px] font-bold text-outline uppercase tracking-wider leading-relaxed max-w-lg opacity-80">
                 {routine.description}

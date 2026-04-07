@@ -187,10 +187,16 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
 };
 
 // Assign a routine to a specific user
-export const assignRoutineToUser = async (uid: string, routine: Routine) => {
+export const assignRoutineToUser = async (uid: string, routine: Routine, authorId?: string, authorName?: string) => {
   const userRef = getUserRef(uid);
+  const routineWithAuthor = {
+    ...routine,
+    authorId: authorId || routine.authorId,
+    authorName: authorName || routine.authorName
+  };
+  
   await updateDoc(userRef, {
-    assignedRoutines: arrayUnion(routine)
+    assignedRoutines: arrayUnion(routineWithAuthor)
   });
 };
 

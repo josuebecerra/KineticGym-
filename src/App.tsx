@@ -518,6 +518,7 @@ export default function App() {
           setRestState={setRestState}
           onScreenChange={setActiveScreen}
           userRole={userProfile?.role}
+          assignedRoutines={userProfile?.assignedRoutines || []}
           onShowDialog={showDialog}
         />
       );
@@ -587,7 +588,7 @@ export default function App() {
           );
         }
         return <GymInfo info={gymInfo} userProfile={userProfile} onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />;
-      case 'rutinas': return <RoutineManager onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />;
+      case 'rutinas': return <RoutineManager profile={userProfile} onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />;
       case 'explorar': return <Hub onNavigate={setActiveScreen} userProfile={userProfile} />;
       default: return (
         <Home 

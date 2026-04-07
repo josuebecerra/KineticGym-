@@ -19,10 +19,11 @@ interface WorkoutProps {
   setRestState: React.Dispatch<React.SetStateAction<RestState>>;
   onScreenChange: (screen: Screen) => void;
   userRole?: string;
+  assignedRoutines?: Routine[];
   onShowDialog: (config: Omit<DialogConfig, 'isOpen'>) => void;
 }
 
-export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState, restState, setRestState, onScreenChange, userRole, onShowDialog }) => {
+export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRoutine, onCancel, workoutState, setWorkoutState, restState, setRestState, onScreenChange, userRole, assignedRoutines = [], onShowDialog }) => {
   const [view, setView] = useState<WorkoutView>(workoutState.isActive ? 'active' : (initialRoutine ? 'preview' : 'selection'));
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(initialRoutine || null);
   
@@ -61,7 +62,23 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
     });
 
     let templateExercises: ActiveExercise[] = [];
-    if (routine.exerciseIds && routine.exerciseIds.length > 0) {
+    
+    if (routine.defaultExercises && routine.defaultExercises.length > 0) {
+      templateExercises = routine.defaultExercises.map(def => {
+        const exercise = EXERCISES.find(ex => ex.id === def.exerciseId);
+        if (!exercise) return null;
+
+        return {
+          ...exercise,
+          sets: def.sets.map(s => ({
+            id: crypto.randomUUID(),
+            weight: s.weight,
+            reps: s.reps,
+            completed: false
+          }))
+        } as ActiveExercise;
+      }).filter(Boolean) as ActiveExercise[];
+    } else if (routine.exerciseIds && routine.exerciseIds.length > 0) {
       templateExercises = routine.exerciseIds.map(id => {
         const exercise = EXERCISES.find(ex => ex.id === id);
         if (!exercise) return null;
@@ -195,7 +212,8 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
   };
 
   if (view === 'selection') {
-    const filteredRoutines = ROUTINES.filter(r => routineCategory === 'Todas' || r.category === routineCategory);
+    const sourceRoutines = (userRole === 'admin' || userRole === 'trainer') ? ROUTINES : assignedRoutines;
+    const filteredRoutines = sourceRoutines.filter(r => routineCategory === 'Todas' || r.category === routineCategory);
 
     return (
       <motion.div 
@@ -240,7 +258,7 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           </div>
           
           <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar hide-scroll-bar">
-            {['Todas', ...Array.from(new globalThis.Set(ROUTINES.map(r => r.category)))].map(category => (
+            {['Todas', ...Array.from(new globalThis.Set(sourceRoutines.map(r => r.category)))].map(category => (
               <button
                 key={category}
                 onClick={() => setRoutineCategory(category)}
@@ -299,6 +317,27 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                 </div>
               </div>
             ))}
+
+            {filteredRoutines.length === 0 && (
+              <div className="bg-surface-container-low/30 rounded-[40px] p-12 border-2 border-dashed border-outline-variant/10 flex flex-col items-center text-center gap-6">
+                <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center text-outline/20">
+                  <span className="material-symbols-outlined text-4xl">folder_off</span>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-headline text-xl font-black uppercase italic text-on-surface">Sin rutinas asignadas</h3>
+                  <p className="text-[10px] font-bold text-outline uppercase tracking-widest leading-loose max-w-[200px]">
+                    Tu entrenador aún no ha programado rutinas específicamente para ti.
+                  </p>
+                </div>
+                <Button 
+                  variant="surface" 
+                  onClick={handleStartFreeSession}
+                  className="px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.2em]"
+                >
+                  O INICIAR SESIÓN LIBRE
+                </Button>
+              </div>
+            )}
           </div>
         </section>
       </motion.div>
@@ -346,9 +385,40 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-[10px] font-black uppercase text-on-surface-variant tracking-[0.3em] ml-2">Objetivo de la Sesión</h4>
-            <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10 italic text-on-surface-variant text-sm">
-              "Esta rutina está enfocada en maximizar la {selectedRoutine.category.toLowerCase()} mediante un volumen de {selectedRoutine.exercisesCount} bloques. Prepárate para una sesión de alta intensidad."
+            <h4 className="text-[10px] font-black uppercase text-on-surface-variant tracking-[0.3em] ml-2">Ejercicios Incluidos</h4>
+            <div className="space-y-3">
+              {selectedRoutine.defaultExercises?.map((def, idx) => {
+                const exercise = EXERCISES.find(ex => ex.id === def.exerciseId);
+                return (
+                  <div key={idx} className="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border border-outline-variant/10 group hover:border-secondary/20 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-secondary border border-outline-variant/5">
+                        <span className="material-symbols-outlined text-xl">fitness_center</span>
+                      </div>
+                      <div>
+                        <span className="text-sm font-black text-on-surface uppercase italic block">{exercise?.name || 'Cargando...'}</span>
+                        <span className="text-[9px] font-bold text-outline uppercase tracking-widest">{exercise?.muscle || 'General'}</span>
+                      </div>
+                    </div>
+                    <div className="bg-secondary/10 px-3 py-1 rounded-full border border-secondary/20">
+                      <span className="text-[10px] font-black text-secondary uppercase italic">{def.sets.length} SERIES</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {!selectedRoutine.defaultExercises && selectedRoutine.exerciseIds?.map((id, idx) => {
+                const exercise = EXERCISES.find(ex => ex.id === id);
+                return (
+                  <div key={idx} className="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border border-outline-variant/10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-secondary">
+                        <span className="material-symbols-outlined text-xl">fitness_center</span>
+                      </div>
+                      <span className="text-sm font-black text-on-surface uppercase italic">{exercise?.name || 'Cargando...'}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -590,8 +660,10 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
           type="button"
           variant="secondary"
           onClick={() => {
+            const isFreeSession = !workoutState.selectedRoutine;
             const hasCompleted = activeExercises.some(ex => ex.sets.some(s => s.completed));
-            if (!hasCompleted) {
+            
+            if (!isFreeSession && !hasCompleted) {
               onShowDialog({
                 type: 'info',
                 title: 'SIN SERIES',
@@ -614,13 +686,15 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
         </Button>
       </div>
 
-      <button 
-        type="button"
-        onClick={() => setIsSelectorOpen(true)}
-        className="w-full bg-surface-container-high py-4 rounded-xl flex items-center justify-center gap-2 font-headline font-bold text-sm tracking-wider active:scale-[0.98] transition-transform text-on-surface-variant border border-outline-variant/10 relative z-10"
-      >
-        <span className="material-symbols-outlined text-lg">add</span> AÑADIR EJERCICIO
-      </button>
+      {userRole !== 'trainee' && (
+        <button 
+          type="button"
+          onClick={() => setIsSelectorOpen(true)}
+          className="w-full bg-surface-container-high py-4 rounded-xl flex items-center justify-center gap-2 font-headline font-bold text-sm tracking-wider active:scale-[0.98] transition-transform text-on-surface-variant border border-outline-variant/10 relative z-10"
+        >
+          <span className="material-symbols-outlined text-lg">add</span> AÑADIR EJERCICIO
+        </button>
+      )}
 
       <div className="space-y-6">
         {activeExercises.map((exercise) => (
@@ -630,26 +704,28 @@ export const Workout: React.FC<WorkoutProps> = ({ onFinish, sessions, initialRou
                 <h2 className="font-headline text-lg font-extrabold text-on-surface leading-tight uppercase">{exercise.name}</h2>
                 <p className="text-secondary text-[10px] font-bold uppercase tracking-widest mt-1">{exercise.muscle} • {exercise.equipment}</p>
               </div>
-              <button 
-                type="button"
-                onClick={() => {
-                  onShowDialog({
-                    type: 'confirm',
-                    title: '¿QUITAR EJERCICIO?',
-                    message: `¿Seguro que quieres eliminar "${exercise.name}" de esta sesión? Se perderán las series de este ejercicio.`,
-                    confirmText: 'QUITAR',
-                    onConfirm: () => {
-                      setWorkoutState(prev => ({
-                        ...prev,
-                        activeExercises: prev.activeExercises.filter(ex => ex.id !== exercise.id)
-                      }));
-                    }
-                  });
-                }}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-90"
-              >
-                <span className="material-symbols-outlined text-lg">delete</span>
-              </button>
+              {userRole !== 'trainee' && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    onShowDialog({
+                      type: 'confirm',
+                      title: '¿QUITAR EJERCICIO?',
+                      message: `¿Seguro que quieres eliminar "${exercise.name}" de esta sesión? Se perderán las series de este ejercicio.`,
+                      confirmText: 'QUITAR',
+                      onConfirm: () => {
+                        setWorkoutState(prev => ({
+                          ...prev,
+                          activeExercises: prev.activeExercises.filter(ex => ex.id !== exercise.id)
+                        }));
+                      }
+                    });
+                  }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-90"
+                >
+                  <span className="material-symbols-outlined text-lg">delete</span>
+                </button>
+              )}
             </div>
             
             <div className="p-4 space-y-3">

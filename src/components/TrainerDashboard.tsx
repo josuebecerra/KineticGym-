@@ -57,7 +57,29 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const handleAssign = async (routine: Routine) => {
     if (!selectedTrainee) return;
     try {
-      await assignRoutineToUser(selectedTrainee.uid, routine);
+      const trainerProfile = allStaff.find(s => s.uid === currentUserUid) || { uid: currentUserUid, displayName: 'Entrenador' };
+      await assignRoutineToUser(
+        selectedTrainee.uid, 
+        routine, 
+        currentUserUid, 
+        trainerProfile.displayName || 'Entrenador'
+      );
+      
+      // Update local state to show author info immediately
+      const routineWithAuthor = {
+        ...routine,
+        authorId: currentUserUid,
+        authorName: trainerProfile.displayName || 'Entrenador'
+      };
+      
+      const updatedTrainee = { 
+        ...selectedTrainee, 
+        assignedRoutines: [...(selectedTrainee.assignedRoutines || []), routineWithAuthor] 
+      };
+      
+      setSelectedTrainee(updatedTrainee);
+      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
+
       onShowDialog({
         type: 'success',
         title: 'RUTINA ASIGNADA',
@@ -275,9 +297,26 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
 
   const handleRemoveRoutine = async (routineId: string) => {
     if (!selectedTrainee) return;
+    
+    // Check permissions: only author or admin can remove
+    const routine = selectedTrainee.assignedRoutines?.find((r, idx) => `${r.id}-${idx}` === routineId || r.id === routineId);
+    const isOwner = routine?.authorId === currentUserUid;
+    const isAdmin = currentRole === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      onShowDialog({
+        type: 'error',
+        title: 'ACCESO DENEGADO',
+        message: 'Solo el entrenador que asignó esta rutina (o un Administrador) puede eliminarla.',
+        confirmText: 'ENTENDIDO'
+      });
+      return;
+    }
+
     try {
       const { updateUserProfile } = await import('../services/db');
-      const updatedRoutines = (selectedTrainee.assignedRoutines || []).filter(r => r.id !== routineId);
+      // We use index-based identification or similar if IDs repeat, but for simplicity:
+      const updatedRoutines = (selectedTrainee.assignedRoutines || []).filter((r, idx) => `${r.id}-${idx}` !== routineId && r.id !== routineId);
       await updateUserProfile(selectedTrainee.uid, { assignedRoutines: updatedRoutines });
       
       const updatedTrainee = { ...selectedTrainee, assignedRoutines: updatedRoutines };
@@ -293,6 +332,43 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleClearAllRoutines = async () => {
+    if (!selectedTrainee) return;
+    
+    onShowDialog({
+      type: 'confirm',
+      title: '¿LIMPIAR TODAS LAS RUTINAS?',
+      message: `¿Estás seguro de que deseas eliminar TODAS las rutinas asignadas a ${selectedTrainee.displayName}? Esta acción no se puede deshacer.`,
+      confirmText: 'SÍ, BORRAR TODO',
+      cancelText: 'CANCELAR',
+      onConfirm: async () => {
+        try {
+          const { updateUserProfile } = await import('../services/db');
+          await updateUserProfile(selectedTrainee.uid, { assignedRoutines: [] });
+          
+          const updatedTrainee = { ...selectedTrainee, assignedRoutines: [] };
+          setSelectedTrainee(updatedTrainee);
+          setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
+          
+          onShowDialog({
+            type: 'success',
+            title: 'LIMPIEZA COMPLETA',
+            message: `Todas las rutinas de ${selectedTrainee.displayName} han sido eliminadas.`,
+            confirmText: 'ENTENDIDO'
+          });
+        } catch (err) {
+          console.error(err);
+          onShowDialog({
+            type: 'error',
+            title: 'ERROR DE LIMPIEZA',
+            message: 'No pudimos limpiar las rutinas de este usuario.',
+            confirmText: 'REINTENTAR'
+          });
+        }
+      }
+    });
   };
 
   const handleGlobalCleanup = async () => {
@@ -620,20 +696,42 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                 {/* Assigned Routines List (Individual Removal) */}
                 {selectedTrainee.assignedRoutines && selectedTrainee.assignedRoutines.length > 0 && (
                   <div className="mt-4 space-y-3 pt-4 border-t border-outline-variant/10">
-                    <p className="text-[9px] font-black text-outline uppercase tracking-widest ml-1">Rutinas Asignadas:</p>
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="text-[9px] font-black text-outline uppercase tracking-widest ml-1">Rutinas Asignadas:</p>
+                      <button 
+                        onClick={handleClearAllRoutines}
+                        className="text-[8px] font-black text-error/60 hover:text-error transition-colors uppercase tracking-widest flex items-center gap-1 bg-error/5 px-2 py-1 rounded-lg border border-error/10"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">delete_sweep</span> Borrar Todas
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                      {selectedTrainee.assignedRoutines.map((routine, idx) => (
-                        <div key={`${routine.id}-${idx}`} className="flex items-center gap-2 bg-surface-container-highest px-3 py-2 rounded-xl group/routine hover:bg-surface-container-high transition-colors border border-outline-variant/5">
-                          <span className="text-[10px] font-black text-on-surface uppercase tracking-tight italic">{routine.name}</span>
-                          <button 
-                            onClick={() => handleRemoveRoutine(routine.id)}
-                            className="w-5 h-5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-all flex items-center justify-center opacity-0 group-hover/routine:opacity-100"
-                            title="Eliminar de este perfil"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">close</span>
-                          </button>
-                        </div>
-                      ))}
+                      {selectedTrainee.assignedRoutines.map((routine, idx) => {
+                        const routineKey = `${routine.id}-${idx}`;
+                        const isOwner = routine.authorId === currentUserUid;
+                        const isAdmin = currentRole === 'admin';
+                        const canDelete = isOwner || isAdmin;
+
+                        return (
+                          <div key={routineKey} className="flex items-center gap-2 bg-surface-container-highest px-3 py-2 rounded-xl group/routine hover:bg-surface-container-high transition-colors border border-outline-variant/5">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-on-surface uppercase tracking-tight italic leading-none">{routine.name}</span>
+                              {routine.authorName && (
+                                <span className="text-[7px] font-bold text-outline uppercase tracking-widest mt-0.5">Por: {routine.authorName}</span>
+                              )}
+                            </div>
+                            {canDelete && (
+                              <button 
+                                onClick={() => handleRemoveRoutine(routineKey)}
+                                className="w-5 h-5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-all flex items-center justify-center opacity-0 group-hover/routine:opacity-100"
+                                title="Eliminar de este perfil"
+                              >
+                                <span className="material-symbols-outlined text-[14px]">close</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

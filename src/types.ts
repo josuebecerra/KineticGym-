@@ -79,6 +79,8 @@ export interface Routine {
   exercisesCount: number;
   level: 'Principiante' | 'Intermedio' | 'Avanzado';
   category: string;
+  authorId?: string;
+  authorName?: string;
   exerciseIds?: string[];
   defaultExercises?: {
     exerciseId: string;
