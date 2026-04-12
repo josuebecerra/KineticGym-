@@ -48,6 +48,42 @@ export interface SubscriptionData {
   cancelReason?: string;
 }
 
+export interface TaxData {
+  id: string; // Cédula
+  type: 'fisica' | 'juridica' | 'dimex' | 'pasaporte';
+  name: string;
+  email: string;
+  phone?: string;
+  address?: {
+    province: string;
+    canton: string;
+    district: string;
+    other?: string;
+  };
+}
+
+export interface Invoice {
+  id: string;
+  consecutive: string;
+  clave: string;
+  date: string;
+  amount: number;
+  tax: number;
+  total: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'error';
+  urlXml?: string;
+  urlPdf?: string;
+  message?: string;
+  planId: string;
+}
+
+export interface GymTaxConfig extends TaxData {
+  haciendaUser?: string;
+  haciendaPass?: string;
+  isStaging: boolean;
+  lastConsecutive: number;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -70,6 +106,8 @@ export interface UserProfile {
     requestDate: string;
     status: 'pending' | 'rejected';
   };
+  taxData?: TaxData;
+  invoices?: Invoice[];
 }
 
 export interface Routine {

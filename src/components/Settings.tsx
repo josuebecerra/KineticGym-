@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { uploadAvatarPhoto, updateUserProfile } from '../services/db';
 import { DialogConfig } from './Dialog';
+import { TaxSettings } from './TaxSettings';
 
 interface SettingsProps {
   profile: UserProfile;
@@ -15,6 +16,7 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack, onShowDialo
   const [soundEnabled, setSoundEnabled] = useState(profile.settings?.soundEnabled ?? true);
   const [isUploading, setIsUploading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showTaxSettings, setShowTaxSettings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const subscription = profile.subscription;
@@ -220,7 +222,6 @@ export const Settings: React.FC<SettingsProps> = ({ profile, onBack, onShowDialo
             )}
           </div>
         )}
-
         <button 
           onClick={handleSave}
           className="w-full kinetic-gradient py-5 rounded-2xl font-headline font-black text-on-primary-container tracking-[0.2em] uppercase shadow-2xl shadow-primary/20 active:scale-[0.98] transition-transform"

@@ -1,4 +1,4 @@
-import { db, storage } from '../lib/firebase';
+import { db, storage, functions } from '../lib/firebase';
 import { 
   collection, 
   doc, 
@@ -12,8 +12,9 @@ import {
   arrayRemove,
   onSnapshot 
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData, SubscriptionData, MembershipPlan } from '../types';
+import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData, SubscriptionData, MembershipPlan, TaxData, GymTaxConfig, Invoice } from '../types';
 
 // Helper to get a user's reference
 const getUserRef = (uid: string) => doc(db, 'users', uid);
@@ -347,7 +348,70 @@ export const clearAllRoutines = async () => {
   await batch.commit();
 };
 
-// Generic Base64 Compressor to bypass Firebase Storage and fit in < 1MB limit
+// Maintenance/Global: Clear all routines
+// (Already exists above)
+
+/**
+ * INVOICING & TAX DATA
+ */
+
+// Save/Update user tax data
+export const updateTaxData = async (uid: string, data: TaxData) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    taxData: data
+  });
+};
+
+// Listen to Gym Tax Config (Admin Only)
+export const listenToGymTaxConfig = (onUpdate: (config: GymTaxConfig | null) => void) => {
+  const configRef = doc(db, 'gym_configs', 'invoicing');
+  
+  return onSnapshot(configRef, (docSnap) => {
+    if (docSnap.exists()) {
+      onUpdate(docSnap.data() as GymTaxConfig);
+    } else {
+      onUpdate(null);
+    }
+  });
+};
+
+// Update Gym Tax Config (Admin Only)
+export const updateGymTaxConfig = async (config: Partial<GymTaxConfig>) => {
+  const configRef = doc(db, 'gym_configs', 'invoicing');
+  const snap = await getDoc(configRef);
+  
+  if (!snap.exists()) {
+    await setDoc(configRef, config);
+  } else {
+    await updateDoc(configRef, config);
+  }
+};
+
+// Save an invoice to the user's records
+export const saveInvoice = async (uid: string, invoice: Invoice) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    invoices: arrayUnion(invoice)
+  });
+  
+  // Also store in a global collection for reporting
+  const invoiceRef = doc(db, 'invoices', invoice.id);
+  await setDoc(invoiceRef, {
+    ...invoice,
+    userId: uid,
+    createdAt: new Date().toISOString()
+  });
+};
+
+// Call Electronic Invoicing Cloud Function
+export const requestElectronicInvoice = async (userId: string, data: { amount: number, planId: string, currency: string }) => {
+  const createInvoiceFn = httpsCallable(functions, 'createElectronicInvoice');
+  const result = await createInvoiceFn({ userId, ...data });
+  return result.data as { success: boolean, clave: string, status: string };
+};
+
+// Generic Base64 Compressor
 const compressImage = (file: File, maxWidth: number): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

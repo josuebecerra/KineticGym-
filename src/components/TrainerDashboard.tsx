@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile, Routine, SubscriptionData } from '../types';
-import { getAllUsers, assignRoutineToUser, updateUserSubscription } from '../services/db';
+import { getAllUsers, assignRoutineToUser, updateUserSubscription, requestElectronicInvoice } from '../services/db';
 import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
+import { InvoicingConfig } from './InvoicingConfig';
 
 interface TrainerDashboardProps {
   onBack: () => void;
@@ -21,6 +22,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests'>('trainee');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showInvoicingConfig, setShowInvoicingConfig] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -832,7 +834,6 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                       </button>
                     ))}
                   </div>
-                  
                   {selectedTrainee.subscription && selectedTrainee.subscription.status === 'active' && (
                     <button
                       onClick={() => {
@@ -857,7 +858,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                           }
                         });
                       }}
-                      className="w-full py-4 rounded-xl border-2 border-error/20 text-error text-[10px] font-black uppercase tracking-widest hover:bg-error/5 transition-all mt-2"
+                       className="w-full py-4 rounded-xl border-2 border-error/20 text-error text-[10px] font-black uppercase tracking-widest hover:bg-error/5 transition-all mt-2"
                     >
                       <span className="material-symbols-outlined text-sm align-middle mr-2">cancel</span>
                       Cancelar Plan Vigente
@@ -979,6 +980,11 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             </div>
           )}
         </section>
+      )}
+      {showInvoicingConfig && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-background/80 backdrop-blur-sm">
+          <InvoicingConfig onClose={() => setShowInvoicingConfig(false)} />
+        </div>
       )}
     </motion.div>
   );
