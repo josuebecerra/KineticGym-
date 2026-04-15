@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { TrainerDashboard } from './TrainerDashboard';
-import * as dbService from '../services/db';
-import { UserProfile } from '../types';
+import { TrainerDashboard } from '../../src/components/TrainerDashboard';
+import * as dbService from '../../src/services/db';
+import { UserProfile } from '../../src/types';
 
 // Mocking the db service
-vi.mock('../services/db', () => ({
+vi.mock('../../src/services/db', () => ({
   getAllUsers: vi.fn(),
   assignRoutineToUser: vi.fn(),
   updateUserSubscription: vi.fn(),

@@ -1,20 +1,21 @@
 import { db, storage, functions } from '../lib/firebase';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
   getDocs,
   query,
   where,
-  updateDoc, 
-  arrayUnion, 
+  updateDoc,
+  arrayUnion,
   arrayRemove,
-  onSnapshot 
+  onSnapshot
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { WorkoutSession, ProgressLog, UserProfile, Routine, GymInfo, AssessmentData, SubscriptionData, MembershipPlan, TaxData, GymTaxConfig, Invoice } from '../types';
+import { generateConsecutivo, generateClave, calculateInvoiceTotals } from '../utils/taxUtils';
 
 // Helper to get a user's reference
 const getUserRef = (uid: string) => doc(db, 'users', uid);
@@ -23,7 +24,7 @@ const getUserRef = (uid: string) => doc(db, 'users', uid);
 export const initializeUser = async (uid: string, email: string) => {
   const userRef = getUserRef(uid);
   const snap = await getDoc(userRef);
-  
+
   const baseProfile = {
     uid,
     email,
@@ -65,14 +66,14 @@ export const saveWorkoutSession = async (uid: string, session: WorkoutSession) =
 export const deleteWorkoutSession = async (uid: string, session: WorkoutSession) => {
   console.log('Intentando eliminar sesión:', session.id);
   const userRef = getUserRef(uid);
-  
+
   try {
     // We use a manual filter instead of arrayRemove because arrayRemove is extremely sensitive to object identity
     const snap = await getDoc(userRef);
     if (snap.exists()) {
       const data = snap.data() as UserProfile;
       const updatedHistory = (data.history || []).filter(s => s.id !== session.id);
-      
+
       await updateDoc(userRef, {
         history: updatedHistory
       });
@@ -99,11 +100,11 @@ export const saveProgressLog = async (uid: string, log: ProgressLog) => {
 
 // Listen to real-time changes
 export const listenToUserData = (
-  uid: string, 
+  uid: string,
   onUpdate: (data: UserProfile | null) => void
 ) => {
   const userRef = getUserRef(uid);
-  
+
   return onSnapshot(userRef, (docSnap) => {
     if (docSnap.exists()) {
       onUpdate(docSnap.data() as UserProfile);
@@ -116,7 +117,7 @@ export const listenToUserData = (
 // Listen to Gym Info (Global)
 export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
   const infoRef = doc(db, 'gym_configs', 'general');
-  
+
   const defaults: GymInfo = {
     schedules: [
       { day: 'Lunes', open: '05:00', close: '22:00' },
@@ -128,10 +129,10 @@ export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
       { day: 'Domingo', open: '08:00', close: '13:00' }
     ],
     news: [
-      { 
-        id: '1', 
-        title: '¡Bienvenidos a Kinetic!', 
-        content: 'Estamos emocionados de tenerte aquí. Revisa tus rutinas asignadas en la pestaña Entrenar.', 
+      {
+        id: '1',
+        title: '¡Bienvenidos a Kinetic!',
+        content: 'Estamos emocionados de tenerte aquí. Revisa tus rutinas asignadas en la pestaña Entrenar.',
         date: new Date().toISOString(),
         type: 'info'
       }
@@ -143,7 +144,7 @@ export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
     ]
   };
 
-  return onSnapshot(infoRef, 
+  return onSnapshot(infoRef,
     async (docSnap) => {
       try {
         if (docSnap.exists()) {
@@ -195,7 +196,7 @@ export const assignRoutineToUser = async (uid: string, routine: Routine, authorI
     authorId: authorId || routine.authorId,
     authorName: authorName || routine.authorName
   };
-  
+
   await updateDoc(userRef, {
     assignedRoutines: arrayUnion(routineWithAuthor)
   });
@@ -232,11 +233,24 @@ export const saveAssessment = async (uid: string, data: AssessmentData) => {
 // Update user subscription (Admin only)
 export const updateUserSubscription = async (uid: string, data: SubscriptionData) => {
   const userRef = getUserRef(uid);
+  const snap = await getDoc(userRef);
+
   await updateDoc(userRef, {
     subscription: data,
     subscriptionHistory: arrayUnion(data),
-    membershipRequest: null // Clear any pending request upon manual update
+    membershipRequest: null
   });
+
+  if (snap.exists()) {
+    const userData = snap.data() as UserProfile;
+    // CRITICAL FIX: Merge the approved subscription into userData before invoicing
+    const freshUserData = { ...userData, subscription: data };
+    try {
+      await triggerAutoInvoice(uid, freshUserData, data.planId as any);
+    } catch (invErr) {
+      console.error("Auto-invoicing failed during manual update, but subscription was saved:", invErr);
+    }
+  }
 };
 
 // Request a membership plan (Trainee)
@@ -256,11 +270,11 @@ export const approveMembership = async (uid: string, planId: '1month' | '6months
   const userRef = getUserRef(uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return;
-  
+
   const userData = snap.data() as UserProfile;
   const now = new Date();
   let startDate = now;
-  
+
   // Extension logic: if active, start from its end date
   if (userData.subscription && userData.subscription.status === 'active') {
     const currentEnd = new Date(userData.subscription.endDate);
@@ -286,6 +300,62 @@ export const approveMembership = async (uid: string, planId: '1month' | '6months
     subscriptionHistory: arrayUnion(subscription),
     membershipRequest: null // Request fulfilled
   });
+
+  // CRITICAL FIX: Merge the approved subscription into userData before invoicing
+  const freshUserData = { ...userData, subscription };
+  try {
+    await triggerAutoInvoice(uid, freshUserData, planId);
+  } catch (invErr) {
+    console.error("Auto-invoicing failed during approval, but membership was granted:", invErr);
+  }
+};
+
+// HELPER: Auto-invoicing logic
+const triggerAutoInvoice = async (uid: string, userData: UserProfile, planId: '1month' | '6months' | '1year') => {
+  try {
+    const configRef = doc(db, 'gym_configs', 'invoicing');
+    const configSnap = await getDoc(configRef);
+
+    if (configSnap.exists()) {
+      const gymConfig = configSnap.data() as GymTaxConfig;
+      const lastNum = gymConfig.lastConsecutive || 0;
+      const consecutivo = generateConsecutivo(lastNum);
+      const clave = generateClave(gymConfig, consecutivo);
+
+      const prices: Record<string, number> = { '1month': 40, '6months': 200, '1year': 350 };
+      const amount = prices[planId] || 0;
+      const totals = calculateInvoiceTotals(amount);
+
+      const invoice: Invoice = {
+        id: clave,
+        consecutive: consecutivo,
+        clave: clave,
+        date: new Date().toISOString(),
+        amount: totals.subtotal,
+        tax: totals.tax,
+        total: totals.total,
+        status: 'accepted',
+        planId,
+        emisorName: gymConfig.name,
+        emisorId: gymConfig.id,
+        receptorName: userData.taxData?.name || userData.displayName || 'Consumidor Final',
+        receptorId: userData.taxData?.id || '000000000',
+        currency: 'USD',
+        condition: '01',
+        method: '04',
+        planStartDate: userData.subscription?.startDate
+      };
+
+      await saveInvoice(uid, invoice);
+      await updateDoc(configRef, { lastConsecutive: lastNum + 1 });
+      console.log(`Invoice ${clave} generated successfully for ${uid}`);
+    } else {
+      console.warn("Auto-invoicing skipped: No gym_configs/invoicing found.");
+    }
+  } catch (err) {
+    console.error("Auto-invoicing failed:", err);
+    throw err; // Re-throw to catch in parent callers
+  }
 };
 
 // Cancel a membership (Admin)
@@ -293,7 +363,7 @@ export const cancelMembership = async (uid: string, reason: string) => {
   const userRef = getUserRef(uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return;
-  
+
   const userData = snap.data() as UserProfile;
   if (!userData.subscription) return;
 
@@ -334,17 +404,17 @@ export const clearAllRoutines = async () => {
   const { writeBatch, collection, getDocs, deleteField } = await import('firebase/firestore');
   const usersRef = collection(db, 'users');
   const snap = await getDocs(usersRef);
-  
+
   const batch = writeBatch(db);
   snap.docs.forEach(userDoc => {
-    batch.update(userDoc.ref, { 
+    batch.update(userDoc.ref, {
       assignedRoutines: [],
       // Clear session persistence fields if any
       workoutState: deleteField(),
       activeExercises: deleteField()
     });
   });
-  
+
   await batch.commit();
 };
 
@@ -366,7 +436,7 @@ export const updateTaxData = async (uid: string, data: TaxData) => {
 // Listen to Gym Tax Config (Admin Only)
 export const listenToGymTaxConfig = (onUpdate: (config: GymTaxConfig | null) => void) => {
   const configRef = doc(db, 'gym_configs', 'invoicing');
-  
+
   return onSnapshot(configRef, (docSnap) => {
     if (docSnap.exists()) {
       onUpdate(docSnap.data() as GymTaxConfig);
@@ -380,7 +450,7 @@ export const listenToGymTaxConfig = (onUpdate: (config: GymTaxConfig | null) => 
 export const updateGymTaxConfig = async (config: Partial<GymTaxConfig>) => {
   const configRef = doc(db, 'gym_configs', 'invoicing');
   const snap = await getDoc(configRef);
-  
+
   if (!snap.exists()) {
     await setDoc(configRef, config);
   } else {
@@ -390,18 +460,31 @@ export const updateGymTaxConfig = async (config: Partial<GymTaxConfig>) => {
 
 // Save an invoice to the user's records
 export const saveInvoice = async (uid: string, invoice: Invoice) => {
-  const userRef = getUserRef(uid);
-  await updateDoc(userRef, {
-    invoices: arrayUnion(invoice)
-  });
-  
-  // Also store in a global collection for reporting
-  const invoiceRef = doc(db, 'invoices', invoice.id);
-  await setDoc(invoiceRef, {
-    ...invoice,
-    userId: uid,
-    createdAt: new Date().toISOString()
-  });
+  // 1. Try to save to user profile
+  try {
+    const userRef = getUserRef(uid);
+    await updateDoc(userRef, {
+      invoices: arrayUnion(invoice)
+    });
+    console.log(`Invoice ${invoice.id} saved to user ${uid} profile.`);
+  } catch (error) {
+    console.error(`Error saving invoice to user profile (${uid}):`, error);
+    // Continue anyway to global collection
+  }
+
+  // 2. Try to save to global collection
+  try {
+    const invoiceRef = doc(db, 'invoices', invoice.id);
+    await setDoc(invoiceRef, {
+      ...invoice,
+      userId: uid,
+      createdAt: new Date().toISOString()
+    });
+    console.log(`Invoice ${invoice.id} saved to global collection.`);
+  } catch (error) {
+    console.error(`Error saving invoice to global collection:`, error);
+    throw error; // Re-throw so parent knows it failed globally
+  }
 };
 
 // Call Electronic Invoicing Cloud Function
@@ -409,6 +492,48 @@ export const requestElectronicInvoice = async (userId: string, data: { amount: n
   const createInvoiceFn = httpsCallable(functions, 'createElectronicInvoice');
   const result = await createInvoiceFn({ userId, ...data });
   return result.data as { success: boolean, clave: string, status: string };
+};
+
+// Get all invoices (Admin only)
+export const getGlobalInvoices = async (): Promise<Invoice[]> => {
+  const invoicesRef = collection(db, 'invoices');
+  const snap = await getDocs(invoicesRef);
+  return snap.docs.map(doc => doc.data() as Invoice);
+};
+
+// BULK GENERATE: Create invoices for all active users without one
+export const bulkGenerateInvoices = async () => {
+  const usersRef = collection(db, 'users');
+  const userSnap = await getDocs(usersRef);
+
+  const invoicesRef = collection(db, 'invoices');
+  const existingInvoicesSnap = await getDocs(invoicesRef);
+  const existingInvoices = existingInvoicesSnap.docs.map(d => d.data() as Invoice);
+
+  let count = 0;
+  for (const uDoc of userSnap.docs) {
+    const userData = uDoc.data() as UserProfile;
+    if (userData.subscription && userData.subscription.status === 'active') {
+      // ROBUST CHECK: Unique user ID + Plan ID + Start Date
+      const hasInvoice = existingInvoices.some(inv =>
+        inv.id === uDoc.id &&
+        inv.planId === userData.subscription?.planId &&
+        inv.planStartDate === userData.subscription?.startDate
+      );
+
+      if (!hasInvoice) {
+        try {
+          // Pass the specific userData from this doc snapshot
+          await triggerAutoInvoice(uDoc.id, userData, userData.subscription.planId as any);
+          count++;
+        } catch (err) {
+          console.error(`Error generating invoice for ${uDoc.id}:`, err);
+        }
+      }
+    }
+  }
+  console.log(`Synchronization complete: ${count} invoices generated.`);
+  return count;
 };
 
 // Generic Base64 Compressor

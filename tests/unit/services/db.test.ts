@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { approveMembership, cancelMembership } from './db';
+import { approveMembership, cancelMembership } from '../../../src/services/db';
 import * as firestore from 'firebase/firestore';
 
 // Mocking the entire firestore module
@@ -13,15 +13,15 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 // Mocking our firebase lib
-vi.mock('../lib/firebase', () => ({
+vi.mock('../../../src/lib/firebase', () => ({
   db: {},
   auth: {},
   storage: {},
   functions: {},
 }));
 
-vi.mock('../services/db', async () => {
-  const actual = await vi.importActual('../services/db') as any;
+vi.mock('../../../src/services/db', async () => {
+  const actual = await vi.importActual('../../../src/services/db') as any;
   return {
     ...actual,
   };

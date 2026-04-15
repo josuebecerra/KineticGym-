@@ -53,5 +53,12 @@ service cloud.firestore {
       // Solo el staff puede modificar la configuración o añadir noticias
       allow write: if request.auth != null && isStaff();
     }
+
+    match /invoices/{invoiceId} {
+      // Solo staff puede ver todas las facturas. Usuarios pueden ver las suyas.
+      allow read: if request.auth != null && (isStaff() || resource.data.userId == request.auth.uid);
+      // Solo staff puede crear facturas
+      allow write: if request.auth != null && isStaff();
+    }
   }
 }

@@ -16,6 +16,13 @@ export const TaxSettings: React.FC<TaxSettingsProps> = ({ uid, initialData, onSa
     type: 'fisica',
     name: '',
     email: '',
+    address: {
+      province: '1',
+      canton: '',
+      district: '',
+      neighborhood: '',
+      other: ''
+    }
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -96,6 +103,57 @@ export const TaxSettings: React.FC<TaxSettingsProps> = ({ uid, initialData, onSa
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             className="w-full bg-surface-container-high border-none rounded-2xl py-3 px-4 text-xs font-bold text-white placeholder:text-outline/30 focus:ring-2 focus:ring-secondary/20 transition-all"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-secondary uppercase tracking-[0.2em] ml-1">Provincia</label>
+            <select 
+              value={formData.address?.province || '1'}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                address: { ...(formData.address || { canton: '', district: '' }), province: e.target.value } 
+              })}
+              className="w-full bg-surface-container-high border-none rounded-2xl py-3 px-4 text-xs font-bold text-white focus:ring-2 focus:ring-secondary/20 transition-all uppercase"
+            >
+              <option value="1">San José</option>
+              <option value="2">Alajuela</option>
+              <option value="3">Cartago</option>
+              <option value="4">Heredia</option>
+              <option value="5">Guanacaste</option>
+              <option value="6">Puntarenas</option>
+              <option value="7">Limón</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black text-secondary uppercase tracking-[0.2em] ml-1">Cantón</label>
+            <input 
+              type="text"
+              required
+              placeholder="Ej: Escazú"
+              value={formData.address?.canton || ''}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                address: { ...(formData.address || { province: '1', district: '' }), canton: e.target.value } 
+              })}
+              className="w-full bg-surface-container-high border-none rounded-2xl py-3 px-4 text-xs font-bold text-white placeholder:text-outline/30 focus:ring-2 focus:ring-secondary/20 transition-all uppercase"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[9px] font-black text-secondary uppercase tracking-[0.2em] ml-1">Distrito y Otras Señas</label>
+          <input 
+            type="text"
+            required
+            placeholder="Ej: San Rafael, 100m Este de..."
+            value={formData.address?.other || ''}
+            onChange={(e) => setFormData({ 
+              ...formData, 
+              address: { ...(formData.address || { province: '1', canton: '', district: '' }), other: e.target.value } 
+            })}
+            className="w-full bg-surface-container-high border-none rounded-2xl py-3 px-4 text-xs font-bold text-white placeholder:text-outline/30 focus:ring-2 focus:ring-secondary/20 transition-all uppercase"
           />
         </div>
 

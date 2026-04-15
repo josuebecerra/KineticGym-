@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatKineticDate } from './date';
+import { formatKineticDate } from '../../../src/utils/date';
 
 describe('formatKineticDate', () => {
   it('debe formatear una fecha correctamente al estilo profesional', () => {

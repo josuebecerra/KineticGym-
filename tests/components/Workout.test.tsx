@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Workout } from './Workout';
-import { WorkoutState, RestState } from '../types';
+import { Workout } from '../../src/components/Workout';
+import { WorkoutState, RestState } from '../../src/types';
 
 describe('Workout Component', () => {
   const mockSetWorkoutState = vi.fn();

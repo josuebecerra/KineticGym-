@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { Dialog } from './Dialog';
+import { Dialog } from '../../src/components/Dialog';
 
 describe('Dialog Component', () => {
   const defaultProps = {

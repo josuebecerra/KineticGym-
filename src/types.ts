@@ -58,6 +58,7 @@ export interface TaxData {
     province: string;
     canton: string;
     district: string;
+    neighborhood?: string;
     other?: string;
   };
 }
@@ -75,6 +76,14 @@ export interface Invoice {
   urlPdf?: string;
   message?: string;
   planId: string;
+  emisorName: string;
+  emisorId: string;
+  receptorName: string;
+  receptorId: string;
+  currency: string;
+  condition: '01' | '02' | '03' | '04' | '05' | '99'; // 01 = Contado
+  method: '01' | '02' | '03' | '04'; // 04 = Tarjeta
+  planStartDate?: string;
 }
 
 export interface GymTaxConfig extends TaxData {

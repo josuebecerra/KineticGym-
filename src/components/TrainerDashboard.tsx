@@ -5,6 +5,7 @@ import { getAllUsers, assignRoutineToUser, updateUserSubscription, requestElectr
 import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
 import { InvoicingConfig } from './InvoicingConfig';
+import { InvoicingDashboard } from './InvoicingDashboard';
 
 interface TrainerDashboardProps {
   onBack: () => void;
@@ -20,7 +21,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [isLoading, setIsLoading] = useState(true);
   const [isAssigningTrainer, setIsAssigningTrainer] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests'>('trainee');
+  const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests' | 'invoices'>('trainee');
   const [searchQuery, setSearchQuery] = useState('');
   const [showInvoicingConfig, setShowInvoicingConfig] = useState(false);
 
@@ -507,7 +508,8 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
               { id: 'trainee', label: 'CLIENTES', icon: 'person' },
               { id: 'trainer', label: 'COACHES', icon: 'fitness_center' },
               { id: 'admin', label: 'ADMINS', icon: 'security' },
-              { id: 'requests', label: 'PENDIENTES', icon: 'notifications_active' }
+              { id: 'requests', label: 'PENDIENTES', icon: 'notifications_active' },
+              { id: 'invoices', label: 'FACTURACIÓN', icon: 'receipt_long' }
             ].map(tab => {
               const hasRequests = tab.id === 'requests' && trainees.some(u => u.membershipRequest?.status === 'pending');
               const isActive = activeTab === tab.id;
@@ -548,6 +550,8 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           </div>
           <p className="text-[10px] font-black text-outline uppercase tracking-[0.4em] animate-pulse">Sincronizando Base de Datos...</p>
         </div>
+      ) : activeTab === 'invoices' ? (
+        <InvoicingDashboard onOpenConfig={() => setShowInvoicingConfig(true)} />
       ) : !selectedTrainee ? (
         <section className="space-y-6">
           <div className="flex justify-between items-center px-1 sm:px-4">

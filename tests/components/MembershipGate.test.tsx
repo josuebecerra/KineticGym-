@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MembershipGate } from './MembershipGate';
-import { UserProfile } from '../types';
+import { MembershipGate } from '../../src/components/MembershipGate';
+import { UserProfile } from '../../src/types';
 
 // Mocking the db service
-vi.mock('../services/db', () => ({
+vi.mock('../../src/services/db', () => ({
   requestMembership: vi.fn(),
 }));
 

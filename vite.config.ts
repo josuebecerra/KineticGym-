@@ -11,21 +11,21 @@ export default defineConfig(({mode}) => {
     test: {
       globals: true,
       environment: 'jsdom',
-      setupFiles: './src/test/setup.ts',
+      setupFiles: './tests/setup.ts',
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/cypress/**',
         '**/.{idea,git,cache,output,temp}/**',
         '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*',
-        'tests/**'
+        'tests/e2e/**'
       ],
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json', 'html'],
         exclude: [
           'node_modules/',
-          'src/test/',
+          'tests/',
           '**/*.test.tsx',
           '**/*.test.ts',
           'dist/'
