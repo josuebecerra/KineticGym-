@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Invoice } from '../types';
-import { getGlobalInvoices, bulkGenerateInvoices } from '../services/db';
+import { getInvoicesPaginated, searchInvoices, bulkGenerateInvoices } from '../services/db';
 import { formatKineticDate } from '../utils/date';
 import { InvoiceVisualizer } from './InvoiceVisualizer';
 
@@ -15,16 +15,72 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cursorStack, setCursorStack] = useState<any[]>([null]);
 
+  const PAGE_SIZE = 20;
+
+  // Unified effect for search and initial load - avoids double loading on mount
   useEffect(() => {
-    loadInvoices();
-  }, []);
+    if (searchQuery.length === 0) {
+      // Immediate load for empty search (initial state or reset)
+      setCursorStack([null]);
+      setCurrentPage(1);
+      loadInvoices(1, [null]);
+      return;
+    }
 
-  const loadInvoices = async () => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        performGlobalSearch();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const performGlobalSearch = async () => {
+    // Silent loading for search to avoid full-screen flicker
+    setIsSyncing(true);
+    setIsSearchingGlobal(true);
     try {
-      const data = await getGlobalInvoices();
-      // Sort by date descending
-      setInvoices(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      const { invoices: data, lastDoc } = await searchInvoices(searchQuery, PAGE_SIZE);
+      setInvoices(data);
+      setLastVisibleDoc(lastDoc);
+      setHasMore(data.length === PAGE_SIZE);
+    } catch (error) {
+      console.error("Error searching invoices:", error);
+    } finally {
+      setIsSyncing(false);
+      setIsLoading(false); // Ensure main loader is off if search was first action
+    }
+  };
+
+  const loadInvoices = async (page: number = 1, stack: any[] = cursorStack) => {
+    // Only show full-screen loader on first load or if list is empty
+    if (invoices.length === 0) {
+      setIsLoading(true);
+    }
+    
+    setIsSearchingGlobal(false);
+    
+    try {
+      const cursor = stack[page - 1];
+      const { invoices: data, lastDoc } = await getInvoicesPaginated(PAGE_SIZE, cursor);
+      
+      setInvoices(data);
+      
+      // If we're moving to a NEW page (not going back), plus we have a lastDoc, 
+      // prepare the next cursor if it doesn't exist in stack yet
+      if (lastDoc && stack.length <= page) {
+        setCursorStack([...stack, lastDoc]);
+      }
+
+      setCurrentPage(page);
+      setHasMore(data.length === PAGE_SIZE);
     } catch (error) {
       console.error("Error loading invoices:", error);
     } finally {
@@ -46,15 +102,7 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => {
-    if (!inv) return false;
-    const search = searchQuery.toLowerCase();
-    const name = (inv.receptorName || '').toLowerCase();
-    const clave = (inv.clave || '').toLowerCase();
-    const consecutive = (inv.consecutive || '').toLowerCase();
-    
-    return name.includes(search) || clave.includes(search) || consecutive.includes(search);
-  });
+  const displayInvoices = invoices; // Now filtered by search or paginated at DB level
 
   const stats = {
     totalRevenue: invoices.reduce((acc, inv) => acc + inv.total, 0),
@@ -151,7 +199,7 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
-              {filteredInvoices.map((inv) => (
+              {displayInvoices.map((inv) => (
                 <tr key={inv.id} className="hover:bg-white/5 transition-colors group">
                   <td className="px-6 py-4">
                     <p className="text-[10px] font-bold text-white">{formatKineticDate(inv.date)}</p>
@@ -187,13 +235,52 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
           </table>
         </div>
 
-        {filteredInvoices.length === 0 && (
+        {displayInvoices.length === 0 && (
           <div className="py-20 text-center">
             <span className="material-symbols-outlined text-4xl text-outline-variant/20 mb-4 italic">content_paste_off</span>
-            <p className="text-[11px] font-black uppercase text-outline tracking-widest">No se encontraron registros</p>
+            <p className="text-[11px] font-black uppercase text-outline tracking-widest">
+              {isSearchingGlobal ? 'No se encontraron registros en la búsqueda global' : 'No hay facturas cargadas'}
+            </p>
           </div>
         )}
       </div>
+
+      {/* Pagination Footer */}
+      {!isSearchingGlobal && (
+        <div className="flex items-center justify-between px-6 py-4 bg-surface-container-low border border-outline-variant/10 rounded-[24px] mx-2">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => loadInvoices(currentPage - 1)}
+              disabled={currentPage === 1 || isLoading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${currentPage === 1 || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
+            >
+              <span className="material-symbols-outlined text-lg">chevron_left</span>
+              Anterior
+            </button>
+            
+            <div className="flex items-center gap-2 px-6 py-2 bg-surface-container-high/30 rounded-xl border border-outline-variant/5">
+              <span className="text-[9px] font-black text-outline uppercase tracking-widest">Página</span>
+              <span className="text-sm font-black italic text-secondary">{currentPage}</span>
+            </div>
+
+            <button 
+              onClick={() => loadInvoices(currentPage + 1)}
+              disabled={!hasMore || isLoading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${!hasMore || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
+            >
+              Siguiente
+              <span className="material-symbols-outlined text-lg">chevron_right</span>
+            </button>
+          </div>
+
+          {isLoading && (
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
+              <span className="text-[8px] font-black text-outline uppercase tracking-widest animate-pulse">Sincronizando...</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Visualizer Modal */}
       <AnimatePresence>

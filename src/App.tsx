@@ -15,6 +15,7 @@ import { Hub } from './components/Hub';
 import { RoutineManager } from './components/RoutineManager';
 import { Login } from './components/Login';
 import { Assessment } from './components/Assessment';
+import { FloatingTimer } from './components/FloatingTimer';
 import { EXERCISES } from './constants';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
@@ -648,57 +649,20 @@ export default function App() {
         />
       )}
 
-      {/* Floating Active Workout Widget */}
-      {workoutState.isActive && activeScreen !== 'entrenar' && (
-        <div 
-          onClick={() => setActiveScreen('entrenar')}
-          className="fixed right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
-          style={{ bottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
-        >
-          <div className="absolute inset-0 bg-secondary/5 group-hover:bg-secondary/10 transition-colors" />
-          
-          <div className="relative flex items-center justify-center w-12 h-12 rounded-full kinetic-gradient shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-on-primary-container">fitness_center</span>
-            <div className="absolute top-0 right-0 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-error border-2 border-surface-container-high"></span>
-            </div>
-          </div>
-          
-          <div className="relative">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-outline leading-none mb-1">En Progreso</p>
-            <p className="font-headline font-black text-2xl leading-none tracking-tight text-white group-hover:text-primary-container transition-colors italic">
-              {formatTime(workoutState.elapsedSeconds)}
-            </p>
-          </div>
-        </div>
-      )}
+      <FloatingTimer 
+        type="workout"
+        workoutState={workoutState} 
+        onNavigate={setActiveScreen}
+        isVisible={workoutState.isActive && activeScreen !== 'entrenar'}
+      />
 
-      {/* Floating REST Widget */}
-      {restState.isActive && activeScreen !== 'descanso' && (
-        <div 
-          onClick={() => setActiveScreen('descanso')}
-          className="fixed right-6 md:right-12 z-[100] bg-surface-container-high border border-outline-variant/10 rounded-[32px] p-4 pr-6 shadow-2xl flex items-center gap-4 cursor-pointer active:scale-[0.98] hover:scale-105 transition-all group overflow-hidden"
-          style={{ bottom: 'calc(12rem + env(safe-area-inset-bottom, 0px))' }}
-        >
-          <div className="absolute inset-0 bg-secondary/10 group-hover:bg-secondary/20 transition-colors animate-pulse" />
-          
-          <div className="relative flex items-center justify-center w-12 h-12 rounded-full bg-secondary shadow-lg shadow-secondary/30">
-            <span className="material-symbols-outlined text-on-secondary">timer</span>
-            <div className="absolute top-0 right-0 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white border-2 border-secondary"></span>
-            </div>
-          </div>
-          
-          <div className="relative">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary leading-none mb-1 animate-pulse">Descansando</p>
-            <p className="font-headline font-black text-2xl leading-none tracking-tight text-white group-hover:text-secondary transition-colors tabular-nums">
-              {formatTime(restState.timeLeft)}
-            </p>
-          </div>
-        </div>
-      )}
+      <FloatingTimer 
+        type="rest"
+        restState={restState}
+        setRestState={setRestState}
+        onNavigate={setActiveScreen}
+        isVisible={restState.isActive && activeScreen !== 'descanso'}
+      />
       {/* Live Debug Timer (Pruebas - Solo en Desarrollo) */}
       {import.meta.env.DEV && user && (
         <div className="fixed top-0 left-0 right-0 z-[1001] flex justify-center pointer-events-none">

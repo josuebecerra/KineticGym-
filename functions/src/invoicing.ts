@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import axios from "axios";
-import * as forge from "node-forge";
+
 import * as xml2js from "xml2js";
 import { GymTaxConfig, TaxData } from "../../src/types";
 
@@ -11,7 +11,7 @@ const db = admin.firestore();
  */
 export async function generateAndSendInvoice(userId: string, invoiceData: any) {
   // 1. Get Gym Configuration (EMISOR)
-  const gymConfigDoc = await db.collection("config").doc("gymTaxConfig").get();
+  const gymConfigDoc = await db.collection("gym_configs").doc("invoicing").get();
   if (!gymConfigDoc.exists) {
     throw new Error("La configuración fiscal del gimnasio no ha sido establecida.");
   }
@@ -44,12 +44,11 @@ export async function generateAndSendInvoice(userId: string, invoiceData: any) {
   const signedXml = await signXmlXades(rawXml, gymConfig);
 
   // 6. Send to Hacienda
-  if (gymConfig.mode === 'production' || gymConfig.mode === 'staging') {
-    const token = await getHaciendaToken(gymConfig);
-    const response = await sendToHacienda(signedXml, token, clave, gymConfig);
-    
-    // 7. Save to Firestore
-    const invoiceRecord = {
+  const token = await getHaciendaToken(gymConfig);
+  const response = await sendToHacienda(signedXml, token, clave, gymConfig);
+  
+  // 7. Save to Firestore
+  const invoiceRecord = {
       id: clave,
       userId,
       date: new Date().toISOString(),
@@ -68,19 +67,16 @@ export async function generateAndSendInvoice(userId: string, invoiceData: any) {
     });
 
     return { success: true, clave, status: invoiceRecord.status };
-  } else {
-    // Development mode logic (Simulated)
-    return { success: true, clave, status: 'simulated' };
-  }
 }
 
 async function incrementConsecutivo(): Promise<string> {
-  const counterRef = db.collection("config").doc("invoiceCounter");
+  const configRef = db.collection("gym_configs").doc("invoicing");
   const result = await db.runTransaction(async (transaction) => {
-    const doc = await transaction.get(counterRef);
-    const newVal = (doc.exists ? doc.data()?.current : 0) + 1;
-    transaction.set(counterRef, { current: newVal });
-    return newVal.toString().padStart(20, '0');
+    const doc = await transaction.get(configRef);
+    const lastNum = (doc.exists ? doc.data()?.lastConsecutive : 0) || 0;
+    const nextVal = lastNum + 1;
+    transaction.update(configRef, { lastConsecutive: nextVal });
+    return nextVal.toString().padStart(20, '0');
   });
   return result;
 }
@@ -90,11 +86,21 @@ function generateClave(config: GymTaxConfig, consecutivo: string): string {
   const day = new Date().getDate().toString().padStart(2, '0');
   const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
   const year = new Date().getFullYear().toString().slice(-2);
-  const idStr = config.issuerId.padStart(12, '0');
+  const idStr = config.id.replace(/-/g, '').padStart(12, '0');
   const situacion = "1"; // Normal
   const seguridad = Math.floor(10000000 + Math.random() * 90000000).toString(); // 8 digits
   
   return `${country}${day}${month}${year}${idStr}${consecutivo}${situacion}${seguridad}`;
+}
+
+function mapTaxTypeToHaciendaCode(type: TaxData['type']): string {
+  switch (type) {
+    case 'fisica': return '01';
+    case 'juridica': return '02';
+    case 'dimex': return '03';
+    case 'pasaporte': return '04';
+    default: return '01';
+  }
 }
 
 function buildXmlObject(emisor: GymTaxConfig, receptor: TaxData, data: any, consecutivo: string, clave: string) {
@@ -107,29 +113,29 @@ function buildXmlObject(emisor: GymTaxConfig, receptor: TaxData, data: any, cons
         "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance"
       },
       Clave: clave,
-      CodigoActividad: emisor.activityCode,
+      CodigoActividad: emisor.activityCode || "931101", // Default if not set, but ideally should be in config
       NumeroConsecutivo: consecutivo,
       FechaEmision: new Date().toISOString(),
       Emisor: {
-        Nombre: emisor.issuerName,
+        Nombre: emisor.name,
         Identificacion: {
-          Tipo: emisor.idType === 'physical' ? '01' : '02',
-          Numero: emisor.issuerId
+          Tipo: mapTaxTypeToHaciendaCode(emisor.type),
+          Numero: emisor.id.replace(/-/g, '')
         },
         Ubicacion: {
-          Provincia: "1",
-          Canton: "01",
-          Distrito: "01",
-          Barrio: "01",
-          OtrasSeñas: "Kinetic Gym HQ"
+          Provincia: emisor.address?.province || "1",
+          Canton: emisor.address?.canton || "01",
+          Distrito: emisor.address?.district || "01",
+          Barrio: emisor.address?.neighborhood || "01",
+          OtrasSeñas: emisor.address?.other || "Kinetic Gym"
         },
-        CorreoElectronico: emisor.supportEmail
+        CorreoElectronico: emisor.email
       },
       Receptor: {
         Nombre: receptor.name,
         Identificacion: {
-          Tipo: receptor.idType === 'physical' ? '01' : '02',
-          Numero: receptor.idNumber
+          Tipo: mapTaxTypeToHaciendaCode(receptor.type),
+          Numero: receptor.id.replace(/-/g, '')
         },
         CorreoElectronico: receptor.email
       },
@@ -173,27 +179,27 @@ function buildXmlObject(emisor: GymTaxConfig, receptor: TaxData, data: any, cons
 async function signXmlXades(xml: string, config: GymTaxConfig): Promise<string> {
   // This is where we would use node-forge or a specialized XAdES library
   // In a real production environment, you'd use the .p12 key here.
-  console.log("Signing XML for clave:", config.issuerId);
+  console.log("Signing XML for id:", config.id);
   return xml; // TODO: Implement full XAdES-EPES signing
 }
 
 async function getHaciendaToken(config: GymTaxConfig) {
-  const url = config.mode === 'production' 
+  const url = !config.isStaging 
     ? "https://idp.hacienda.go.cr/auth/realms/rut/protocol/openid-connect/token"
     : "https://idp.hacienda.go.cr/auth/realms/rut-stag/protocol/openid-connect/token";
 
   const params = new URLSearchParams();
   params.append('grant_type', 'password');
-  params.append('client_id', 'api-pru'); // For staging
-  params.append('username', config.apiUsername);
-  params.append('password', config.apiPassword);
+  params.append('client_id', config.isStaging ? 'api-pru' : 'api-prod'); 
+  params.append('username', config.haciendaUser || '');
+  params.append('password', config.haciendaPass || '');
 
   const response = await axios.post(url, params);
   return response.data.access_token;
 }
 
 async function sendToHacienda(xml: string, token: string, clave: string, config: GymTaxConfig) {
-  const url = config.mode === 'production'
+  const url = !config.isStaging
     ? "https://api.comprobanteselectronicos.go.cr/recepcion/v1/recepcion"
     : "https://api-sandbox.comprobanteselectronicos.go.cr/recepcion/v1/recepcion";
 
@@ -201,8 +207,8 @@ async function sendToHacienda(xml: string, token: string, clave: string, config:
     clave: clave,
     fecha: new Date().toISOString(),
     emisor: {
-      tipoIdentificacion: config.idType === 'physical' ? '01' : '02',
-      numeroIdentificacion: config.issuerId
+      tipoIdentificacion: mapTaxTypeToHaciendaCode(config.type),
+      numeroIdentificacion: config.id.replace(/-/g, '')
     },
     receptor: null, // Depending on the payload
     comprobanteXml: Buffer.from(xml).toString('base64')

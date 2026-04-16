@@ -10,7 +10,10 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
-  onSnapshot
+  onSnapshot,
+  limit,
+  startAfter,
+  orderBy
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -181,11 +184,102 @@ export const updateGymInfo = async (info: Partial<GymInfo>) => {
   await updateDoc(infoRef, info);
 };
 
-// Get all users (Staff only)
+// Get all users (Staff only) - DEPRECATED: Use getUsersPaginated for scale
 export const getAllUsers = async (): Promise<UserProfile[]> => {
   const usersRef = collection(db, 'users');
   const snap = await getDocs(usersRef);
   return snap.docs.map(doc => doc.data() as UserProfile);
+};
+
+// Paginated Users Fetch
+export const getUsersPaginated = async (
+  pageSize: number, 
+  lastVisibleDoc: any = null,
+  filters?: { role?: string, trainerId?: string, membershipRequestStatus?: string }
+) => {
+  const usersRef = collection(db, 'users');
+  let constraints: any[] = [orderBy('displayName'), limit(pageSize)];
+
+  if (filters?.role) {
+    constraints.unshift(where('role', '==', filters.role));
+  }
+  if (filters?.trainerId) {
+    constraints.unshift(where('trainerId', '==', filters.trainerId));
+  }
+  if (filters?.membershipRequestStatus) {
+    constraints.unshift(where('membershipRequest.status', '==', filters.membershipRequestStatus));
+  }
+
+  if (lastVisibleDoc) {
+    constraints.push(startAfter(lastVisibleDoc));
+  }
+
+  const q = query(usersRef, ...constraints);
+  const snap = await getDocs(q);
+  
+  return {
+    users: snap.docs.map(doc => doc.data() as UserProfile),
+    lastDoc: snap.docs[snap.docs.length - 1] || null
+  };
+};
+
+// Global User Search (Prefix match on displayName)
+export const searchUsers = async (searchTerm: string, pageSize: number = 20) => {
+  if (!searchTerm) return { users: [], lastDoc: null };
+  
+  const usersRef = collection(db, 'users');
+  // Firestore prefix search hack: searchTerm <= x < searchTerm + \uf8ff
+  const q = query(
+    usersRef,
+    where('displayName', '>=', searchTerm),
+    where('displayName', '<=', searchTerm + '\uf8ff'),
+    limit(pageSize)
+  );
+
+  const snap = await getDocs(q);
+  return {
+    users: snap.docs.map(doc => doc.data() as UserProfile),
+    lastDoc: snap.docs[snap.docs.length - 1] || null
+  };
+};
+
+// Paginated Invoices Fetch
+export const getInvoicesPaginated = async (pageSize: number, lastVisibleDoc: any = null) => {
+  const invoicesRef = collection(db, 'invoices');
+  let q = query(
+    invoicesRef, 
+    orderBy('date', 'desc'), 
+    limit(pageSize)
+  );
+
+  if (lastVisibleDoc) {
+    q = query(invoicesRef, orderBy('date', 'desc'), startAfter(lastVisibleDoc), limit(pageSize));
+  }
+
+  const snap = await getDocs(q);
+  return {
+    invoices: snap.docs.map(doc => doc.data() as Invoice),
+    lastDoc: snap.docs[snap.docs.length - 1] || null
+  };
+};
+
+// Global Invoice Search (Prefix match on receptorName)
+export const searchInvoices = async (searchTerm: string, pageSize: number = 20) => {
+  if (!searchTerm) return { invoices: [], lastDoc: null };
+  
+  const invoicesRef = collection(db, 'invoices');
+  const q = query(
+    invoicesRef,
+    where('receptorName', '>=', searchTerm.toUpperCase()),
+    where('receptorName', '<=', searchTerm.toUpperCase() + '\uf8ff'),
+    limit(pageSize)
+  );
+
+  const snap = await getDocs(q);
+  return {
+    invoices: snap.docs.map(doc => doc.data() as Invoice),
+    lastDoc: snap.docs[snap.docs.length - 1] || null
+  };
 };
 
 // Assign a routine to a specific user

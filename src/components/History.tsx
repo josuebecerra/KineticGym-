@@ -63,7 +63,7 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession, onS
                         onConfirm: () => onDeleteSession?.(session)
                       });
                     }}
-                    className="relative z-[60] w-12 h-12 rounded-full bg-error/10 backdrop-blur-md flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-[0.85]"
+                    className="relative z-10 w-12 h-12 rounded-full bg-error/10 backdrop-blur-md flex items-center justify-center text-error hover:bg-error/20 transition-all active:scale-[0.85]"
                   >
                     <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
@@ -138,7 +138,7 @@ export const History: React.FC<HistoryProps> = ({ sessions, onDeleteSession, onS
                         onConfirm: () => onDeleteSession?.(session)
                       });
                     }}
-                    className="relative z-50 w-11 h-11 rounded-full bg-surface-container-highest flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-[0.85]"
+                    className="relative z-10 w-11 h-11 rounded-full bg-surface-container-highest flex items-center justify-center text-outline hover:text-error hover:bg-error/5 transition-all active:scale-[0.85]"
                   >
                     <span className="material-symbols-outlined text-lg">delete</span>
                   </button>

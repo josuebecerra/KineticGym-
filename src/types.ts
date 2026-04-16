@@ -91,6 +91,7 @@ export interface GymTaxConfig extends TaxData {
   haciendaPass?: string;
   isStaging: boolean;
   lastConsecutive: number;
+  activityCode?: string;
 }
 
 export interface UserProfile {

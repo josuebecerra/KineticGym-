@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile, Routine, SubscriptionData } from '../types';
-import { getAllUsers, assignRoutineToUser, updateUserSubscription, requestElectronicInvoice } from '../services/db';
+import { 
+  assignRoutineToUser, 
+  updateUserSubscription, 
+  requestElectronicInvoice,
+  getUsersPaginated,
+  searchUsers
+} from '../services/db';
 import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
 import { InvoicingConfig } from './InvoicingConfig';
@@ -24,31 +30,93 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests' | 'invoices'>('trainee');
   const [searchQuery, setSearchQuery] = useState('');
   const [showInvoicingConfig, setShowInvoicingConfig] = useState(false);
+  const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cursorStack, setCursorStack] = useState<any[]>([null]);
 
+  const PAGE_SIZE = 20;
+
+  // Unified effect for search, tab changes and initial load
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (searchQuery.length === 0) {
+      // Immediate load for empty search or tab switch
+      setCursorStack([null]);
+      setCurrentPage(1);
+      loadUsers(1, [null]);
+      return;
+    }
 
-  const loadUsers = async () => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        performGlobalSearch();
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeTab]);
+
+  const performGlobalSearch = async () => {
+    // Silent loading for search
+    setIsLoading(false); // In case it was true, don't flicker full screen
+    setIsSearchingGlobal(true);
     try {
-      const users = await getAllUsers();
+      const { users, lastDoc } = await searchUsers(searchQuery, PAGE_SIZE);
+      setTrainees(users);
+      setLastVisibleDoc(lastDoc);
+      setHasMore(users.length === PAGE_SIZE);
+    } catch (error) {
+      console.error("Error searching users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadUsers = async (page: number = 1, stack: any[] = cursorStack) => {
+    // Only show full-screen loader on first load or if list is empty
+    if (trainees.length === 0) {
+      setIsLoading(true);
+    }
+    
+    setIsSearchingGlobal(false);
+    
+    try {
+      // Determine filters based on role and tab
+      const filters: any = {};
       
+      if (currentRole === 'trainer') {
+        filters.role = 'trainee';
+        filters.trainerId = currentUserUid;
+      } else if (currentRole === 'admin') {
+        if (activeTab === 'requests') {
+          filters.role = 'trainee';
+          filters.membershipRequestStatus = 'pending';
+        } else {
+          filters.role = activeTab; // 'trainee', 'trainer', or 'admin'
+        }
+      }
+
+      const cursor = stack[page - 1];
+      const { users, lastDoc } = await getUsersPaginated(
+        PAGE_SIZE, 
+        cursor,
+        filters
+      );
+      
+      setTrainees(users);
+
+      if (lastDoc && stack.length <= page) {
+        setCursorStack([...stack, lastDoc]);
+      }
+
+      setCurrentPage(page);
+      setHasMore(users.length === PAGE_SIZE);
+
       // Store all staff for assignment dropdown (admin only)
       if (currentRole === 'admin') {
         const staff = users.filter(u => u.role === 'admin' || u.role === 'trainer');
         setAllStaff(staff);
-      }
-
-      // Filter trainees based on role
-      if (currentRole === 'trainer') {
-        // Trainers only see their assigned trainees (must be role 'trainee')
-        setTrainees(users.filter(u => u.role === 'trainee' && u.trainerId === currentUserUid));
-      } else if (currentRole === 'admin') {
-        // Admins see everyone to perform assignments/role changes
-        // But we can filter to only trainees for the main list if desired
-        setTrainees(users); 
-      } else {
-        setTrainees([]);
       }
     } catch (error) {
       console.error("Error cargando usuarios:", error);
@@ -429,10 +497,13 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     }
     const role = u.role || 'trainee';
     const matchesTab = role === activeTab;
-    const matchesSearch = 
-      (u.displayName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.email || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesTab && matchesSearch;
+    
+    // If searching globally, we don't apply the tab filter strictly if we want to find them 
+    // BUT the user usually stays in a tab. For now, if searching global, we show all results 
+    // that match the tab if we are in one.
+    if (isSearchingGlobal) return true; 
+
+    return matchesTab;
   });
 
   const getRoleIcon = (role: string) => {
@@ -449,6 +520,22 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       case 'trainer': return 'border-secondary/40 text-secondary shadow-secondary/10';
       default: return 'border-outline-variant/10 text-primary-container shadow-primary/5';
     }
+  };
+
+  const stats = {
+    total: trainees.length,
+    active: trainees.filter(u => u.role === 'trainee' && u.subscription?.status === 'active' && new Date(u.subscription.endDate) > new Date()).length,
+    expired: trainees.filter(u => (u.role === 'trainee' && (!u.subscription || new Date(u.subscription.endDate) <= new Date()))).length,
+    pending: trainees.filter(u => u.membershipRequest?.status === 'pending').length
+  };
+
+  const getMembershipStatus = (u: UserProfile) => {
+    if (!u.subscription) return { label: 'Sin Plan', color: 'text-outline bg-outline/10' };
+    const isExpired = new Date(u.subscription.endDate) <= new Date();
+    if (u.subscription.status === 'canceled') return { label: 'Cancelado', color: 'text-error bg-error/10' };
+    return isExpired 
+      ? { label: 'Vencido', color: 'text-error bg-error/10' }
+      : { label: 'Activo', color: 'text-primary-container bg-primary-container/20' };
   };
 
   return (
@@ -479,27 +566,41 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           )}
         </div>
 
-        {/* Search Bar */}
+        {/* Stats Row */}
         {!selectedTrainee && (
-          <div className="relative group mx-0.5">
-            <div className="absolute inset-0 bg-secondary/5 rounded-[24px] blur-xl group-focus-within:bg-secondary/10 transition-all" />
-            <div className="relative flex items-center bg-surface-container-low border border-outline-variant/10 rounded-[24px] px-5 py-3.5 sm:px-6 sm:py-4 transition-all focus-within:border-secondary/30 focus-within:ring-1 focus-within:ring-secondary/20">
-              <span className="material-symbols-outlined text-outline group-focus-within:text-secondary transition-colors mr-3 text-xl">search</span>
-              <input 
-                type="text" 
-                placeholder={`Buscar...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent border-none focus:ring-0 text-xs sm:text-sm font-bold text-white placeholder:text-outline/50 w-full uppercase tracking-widest"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="p-1 hover:bg-surface-container-high rounded-lg transition-colors">
-                  <span className="material-symbols-outlined text-sm">close</span>
-                </button>
-              )}
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mx-0.5 mt-2">
+            {[
+              { label: 'Total Usuarios', value: stats.total, icon: 'groups', color: 'text-white' },
+              { label: 'Planes Activos', value: stats.active, icon: 'check_circle', color: 'text-primary-container' },
+              { label: 'Membresías Vencidas', value: stats.expired, icon: 'history', color: 'text-error' },
+              { label: 'Solicitudes', value: stats.pending, icon: 'notifications_active', color: 'text-secondary', alert: stats.pending > 0 }
+            ].map((stat, i) => (
+              <motion.div 
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-surface-container-low p-5 sm:p-6 rounded-[32px] border border-outline-variant/10 shadow-sm relative overflow-hidden group"
+              >
+                <span className="material-symbols-outlined absolute -right-2 -bottom-2 text-6xl opacity-5 group-hover:scale-110 transition-transform">
+                  {stat.icon}
+                </span>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`material-symbols-outlined text-sm ${stat.color}`}>{stat.icon}</span>
+                    <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em]">{stat.label}</span>
+                    {stat.alert && <span className="w-1.5 h-1.5 bg-error rounded-full animate-ping" />}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-2xl sm:text-3xl font-headline font-black italic leading-none ${stat.color}`}>{stat.value}</span>
+                    <span className="text-[10px] font-black text-outline/40 uppercase tracking-widest ml-1">Reg</span>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         )}
+
 
         {/* Tab Switcher */}
         {!selectedTrainee && currentRole === 'admin' && (
@@ -554,125 +655,190 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         <InvoicingDashboard onOpenConfig={() => setShowInvoicingConfig(true)} />
       ) : !selectedTrainee ? (
         <section className="space-y-6">
-          <div className="flex justify-between items-center px-1 sm:px-4">
-            <h3 className="text-[9px] sm:text-[10px] font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
-              <span className="w-4 sm:w-6 h-px bg-outline-variant/30" />
-              Directorio de {activeTab === 'trainee' ? 'Clientes' : activeTab === 'trainer' ? 'Staff' : 'Control'}
-            </h3>
-            <div className="bg-surface-container-high px-3 py-1 rounded-full border border-secondary/20 shadow-lg shadow-black/10">
-              <span className="text-[9px] font-black text-secondary tracking-widest">{filteredUsers.length}</span>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 sm:px-4">
+            <div className="flex items-center gap-4">
+              <h3 className="text-[9px] sm:text-[10px] font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
+                <span className="w-4 sm:w-6 h-px bg-outline-variant/30" />
+                Directorio de {activeTab === 'trainee' ? 'Clientes' : activeTab === 'trainer' ? 'Staff' : 'Control'}
+              </h3>
+              <div className="bg-surface-container-high px-3 py-1 rounded-full border border-secondary/20 shadow-lg shadow-black/10">
+                <span className="text-[9px] font-black text-secondary tracking-widest">{filteredUsers.length}</span>
+              </div>
+            </div>
+
+            <div className="relative group min-w-[280px]">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg group-focus-within:text-secondary transition-colors">search</span>
+              <input 
+                type="text" 
+                placeholder="BUSCAR EN ESTA SECCIÓN..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-surface-container-low border border-outline-variant/10 rounded-2xl py-3 pl-12 pr-4 text-[10px] font-black uppercase tracking-widest text-white placeholder:text-outline-variant/40 focus:ring-1 focus:ring-secondary/30 transition-all outline-none"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-container-high rounded-lg transition-colors">
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              )}
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredUsers.map((t, index) => (
-              <motion.div 
-                key={t.uid || `trainee-${index}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => { setSelectedTrainee(t); window.scrollTo(0, 0); }}
-                className={`bg-surface-container-high border ${getRoleColor(t.role || 'trainee')} p-6 rounded-[32px] cursor-pointer hover:bg-surface-container-low transition-all group relative overflow-hidden flex flex-col justify-between h-full`}
-              >
-                {/* Background Role Icon */}
-                <span className="absolute -bottom-4 -right-4 material-symbols-outlined text-8xl italic opacity-5 group-hover:scale-110 transition-transform -rotate-12">
-                  {getRoleIcon(t.role || 'trainee')}
-                </span>
-
-                <div className="flex items-center gap-5 mb-6">
-                  <div className="relative shrink-0">
-                    <img 
-                      src={t.avatarUrl || `https://ui-avatars.com/api/?name=${t.displayName || (t.email ? t.email.split('@')[0] : 'Alumno')}&background=${t.role === 'admin' ? 'FF4444' : 'CCFF00'}&color=121212&bold=true`} 
-                      className="w-16 h-16 rounded-[24px] border-2 border-outline-variant/10 shadow-lg group-hover:border-secondary/30 transition-colors" 
-                    />
-                    <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-4 border-surface-container-high flex items-center justify-center ${t.role === 'admin' ? 'bg-error' : t.role === 'trainer' ? 'bg-secondary' : 'bg-primary'}`}>
-                      <span className="material-symbols-outlined text-[12px] text-black font-black">
-                        {getRoleIcon(t.role || 'trainee')}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="font-headline font-black text-xl uppercase tracking-tight leading-none group-hover:text-secondary transition-colors truncate">{t.displayName || (t.email ? t.email.split('@')[0] : 'Usuario')}</h4>
-                    <p className="text-outline text-[9px] font-bold uppercase tracking-[0.2em] mt-2 truncate opacity-70 italic">{t.email}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 relative z-10">
-                  <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-                    <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Rol de Acceso</span>
-                      <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${t.role === 'admin' ? 'text-error' : t.role === 'trainer' ? 'text-secondary' : 'text-primary'}`}>
-                        {t.role || 'TRAINEE'}
-                      </span>
-                    </div>
-                    {t.role === 'trainee' && (
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Membresía</span>
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-lg ${t.subscription && new Date(t.subscription.endDate) > new Date() ? 'bg-primary-container/20 text-primary-container' : 'bg-error/10 text-error'}`}>
-                          {t.subscription ? (new Date(t.subscription.endDate) > new Date() ? 'ACTIVA' : 'VENCIDA') : 'SIN PLAN'}
-                        </span>
-                      </div>
-                    )}
-                    {t.role === 'trainee' && (
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Coach Responsable</span>
-                        <span className={`text-[9px] font-black uppercase flex items-center gap-1.5 ${t.trainerName ? 'text-secondary' : 'text-error'}`}>
-                          <span className="material-symbols-outlined text-[14px]">{t.trainerName ? 'school' : 'person_off'}</span>
-                          {t.trainerName || 'SIN ASIGNAR'}
-                        </span>
-                      </div>
-                    )}
-                    {t.role === 'trainer' && (
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Dashboard</span>
-                        <span className="text-[12px] font-black text-secondary flex items-center gap-1">
-                           <span className="material-symbols-outlined text-sm">bolt</span> COACH
-                        </span>
-                      </div>
-                    )}
-                    {activeTab === 'requests' && t.membershipRequest && (
-                      <div className="flex flex-col items-end">
-                        <span className="text-[8px] font-black text-secondary uppercase tracking-widest mb-1 animate-pulse">Solicita Plan</span>
-                        <span className="text-[11px] font-black text-white uppercase tracking-tighter italic">
-                          {t.membershipRequest.planId === '1month' ? 'Mensual' : t.membershipRequest.planId === '6months' ? 'Semestral' : 'Anual'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {activeTab === 'requests' && (
-                    <div className="flex gap-2 pt-4 mt-2 border-t border-secondary/10 relative z-20">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleApproveRequest(t); }}
-                        className="flex-1 bg-secondary text-black py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-secondary/20"
+          <div className="bg-surface-container-low rounded-[40px] border border-outline-variant/10 overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-high/50 border-b border-outline-variant/10 italic">
+                    <th className="px-6 py-5 text-left">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Cliente</span>
+                    </th>
+                    <th className="px-6 py-5 text-left hidden sm:table-cell">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Rol</span>
+                    </th>
+                    <th className="px-6 py-5 text-left">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Estado</span>
+                    </th>
+                    <th className="px-6 py-5 text-left hidden md:table-cell">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Coach</span>
+                    </th>
+                    <th className="px-6 py-5 text-right">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Acciones</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/5">
+                  {filteredUsers.map((t, index) => {
+                    const status = getMembershipStatus(t);
+                    return (
+                      <motion.tr 
+                        key={t.uid || `trainee-${index}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        onClick={() => { setSelectedTrainee(t); window.scrollTo(0, 0); }}
+                        className="group hover:bg-white/5 transition-colors cursor-pointer"
                       >
-                        Aprobar
-                      </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleRejectRequest(t); }}
-                        className="flex-1 bg-surface-container-highest text-outline py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-error transition-all"
-                      >
-                        Ignorar
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-[8px] font-black text-outline-variant/60 uppercase tracking-widest mt-1 group-hover:text-secondary/50 transition-colors">
-                    <span>Ver Detalles Completos</span>
-                    <span className="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-4">
+                            <div className="relative shrink-0">
+                              <img 
+                                src={t.avatarUrl || `https://ui-avatars.com/api/?name=${t.displayName || (t.email ? t.email.split('@')[0] : 'Alumno')}&background=${t.role === 'admin' ? 'FF4444' : 'CCFF00'}&color=121212&bold=true`} 
+                                className="w-10 h-10 rounded-xl border border-outline-variant/10 group-hover:border-secondary/30 transition-colors shadow-lg" 
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-headline font-black text-sm uppercase tracking-tight group-hover:text-secondary transition-colors truncate">{t.displayName || (t.email ? t.email.split('@')[0] : 'Usuario')}</p>
+                              <p className="text-outline text-[8px] font-bold uppercase tracking-widest truncate opacity-50 italic">{t.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 hidden sm:table-cell">
+                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getRoleColor(t.role || 'trainee')}`}>
+                            {t.role || 'trainee'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit ${status.color}`}>
+                              {status.label}
+                            </span>
+                            {t.subscription && t.subscription.status === 'active' && (
+                              <span className="text-[8px] font-bold text-outline uppercase tracking-widest opacity-40">
+                                Vence: {new Date(t.subscription.endDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 hidden md:table-cell text-xs">
+                          {t.role === 'trainee' ? (
+                            <div className={`flex items-center gap-2 ${t.trainerName ? 'text-secondary' : 'text-outline/40 italic'}`}>
+                              <span className="material-symbols-outlined text-sm">{t.trainerName ? 'school' : 'person_off'}</span>
+                              <span className="text-[9px] font-black uppercase tracking-wider">{t.trainerName || 'Sin asignar'}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">---</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {activeTab === 'requests' && (
+                              <>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleApproveRequest(t); }}
+                                  className="w-8 h-8 rounded-lg bg-secondary/10 text-secondary hover:bg-secondary hover:text-black transition-all flex items-center justify-center shadow-lg shadow-black/10"
+                                >
+                                  <span className="material-symbols-outlined text-sm">check</span>
+                                </button>
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleRejectRequest(t); }}
+                                  className="w-8 h-8 rounded-lg bg-error/10 text-error hover:bg-error hover:text-white transition-all flex items-center justify-center"
+                                >
+                                  <span className="material-symbols-outlined text-sm">close</span>
+                                </button>
+                              </>
+                            )}
+                            <button className="w-8 h-8 rounded-lg bg-surface-container-highest text-outline group-hover:text-secondary group-hover:bg-secondary/10 transition-all flex items-center justify-center">
+                              <span className="material-symbols-outlined text-sm">chevron_right</span>
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filteredUsers.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 bg-surface-container-low/30 border-t border-outline-variant/10">
+                <span className="material-symbols-outlined text-4xl text-outline-variant/30 mb-4">person_search</span>
+                <p className="text-outline text-[10px] font-black uppercase tracking-[0.4em] italic leading-none">Sin registros</p>
+              </div>
+            )}
           </div>
 
-          {filteredUsers.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-32 bg-surface-container-low/30 rounded-[48px] border-2 border-dashed border-outline-variant/10">
-              <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6">
-                <span className="material-symbols-outlined text-4xl text-outline-variant/30 italic">person_search</span>
+          {/* Pagination Footer */}
+          {!isSearchingGlobal && (
+            <div className="flex items-center justify-between px-6 py-4 bg-surface-container-low border border-outline-variant/10 rounded-[32px] mx-0.5 mt-4">
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); loadUsers(currentPage - 1); }}
+                  disabled={currentPage === 1 || isLoading}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${currentPage === 1 || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
+                >
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                  Anterior
+                </button>
+                
+                <div className="flex items-center gap-2 px-6 py-2.5 bg-surface-container-high/30 rounded-2xl border border-outline-variant/5">
+                  <span className="text-[9px] font-black text-outline uppercase tracking-widest">Página</span>
+                  <span className="text-base font-black italic text-secondary">{currentPage}</span>
+                </div>
+
+                <button 
+                  onClick={(e) => { e.stopPropagation(); loadUsers(currentPage + 1); }}
+                  disabled={!hasMore || isLoading}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${!hasMore || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
+                >
+                  Siguiente
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
               </div>
-              <p className="text-outline text-[11px] font-black uppercase tracking-[0.4em] italic mb-2">Sin resultados cargados</p>
-              <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest">Intenta cambiar la categoría o el término de búsqueda</p>
+
+              {isLoading && (
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
+                  <span className="text-[9px] font-black text-outline uppercase tracking-widest animate-pulse">Cargando...</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isSearchingGlobal && filteredUsers.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center py-32 bg-surface-container-low/30 rounded-[48px] border-2 border-dashed border-outline-variant/10">
+              <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6 text-error">
+                <span className="material-symbols-outlined text-4xl italic">person_off</span>
+              </div>
+              <p className="text-outline text-[11px] font-black uppercase tracking-[0.4em] italic mb-2 text-error">Sin coincidencias en la base de datos</p>
+              <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest">Asegúrate de iniciar con el nombre correctamente</p>
             </div>
           )}
         </section>
