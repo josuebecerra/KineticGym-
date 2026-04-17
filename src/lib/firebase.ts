@@ -4,6 +4,7 @@ import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersist
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { Capacitor } from '@capacitor/core';
 
 const firebaseConfig = {
@@ -17,6 +18,29 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Initialize App Check
+if (typeof window !== 'undefined') {
+  try {
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+    const isPlaceholder = !siteKey || siteKey.includes('placeholder');
+    
+    if (import.meta.env.DEV) {
+      (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    }
+
+    if (!isPlaceholder) {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true
+      });
+    } else if (!import.meta.env.DEV) {
+      console.warn("App Check ignored: Missing VITE_RECAPTCHA_SITE_KEY in production.");
+    }
+  } catch (err) {
+    console.error("App Check failed to initialize:", err);
+  }
+}
 
 let firebaseAuth;
 const isNative = typeof window !== 'undefined' && Capacitor?.isNativePlatform?.();

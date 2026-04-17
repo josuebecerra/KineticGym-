@@ -12,6 +12,7 @@ import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
 import { InvoicingConfig } from './InvoicingConfig';
 import { InvoicingDashboard } from './InvoicingDashboard';
+import { migrateBase64ToStorage } from '../utils/migration_utils';
 
 interface TrainerDashboardProps {
   onBack: () => void;
@@ -35,6 +36,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [cursorStack, setCursorStack] = useState<any[]>([null]);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const PAGE_SIZE = 20;
 
@@ -490,6 +492,42 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     }
   };
 
+  const handleStorageMigration = async () => {
+    onShowDialog({
+      type: 'confirm',
+      title: '¿MIGRAR IMÁGENES A LA NUBE?',
+      message: 'Esta acción buscará todas las fotos guardadas como texto (antiguas) y las subirá a Google Cloud Storage para mejorar la velocidad. Podría tardar unos minutos.',
+      confirmText: 'SÍ, INICIAR MIGRACIÓN',
+      onConfirm: async () => {
+        setIsMigrating(true);
+        try {
+          const result = await migrateBase64ToStorage((msg) => {
+            console.log(msg);
+          });
+          
+          onShowDialog({
+            type: 'success',
+            title: 'MIGRACIÓN COMPLETADA',
+            message: `Se han migrado con éxito ${result.migratedAvatars} avatares y ${result.migratedProgressPhotos} fotos de progreso. ¡Tu app ahora es más rápida!`,
+            confirmText: 'ENTENDIDO'
+          });
+          
+          await loadUsers(); // Refresh list to see new URLs
+        } catch (err) {
+          console.error("Migration failed:", err);
+          onShowDialog({
+            type: 'error',
+            title: 'FALLO EN MIGRACIÓN',
+            message: 'Hubo un error al subir las fotos. Revisa la consola para más detalles.',
+            confirmText: 'CERRAR'
+          });
+        } finally {
+          setIsMigrating(false);
+        }
+      }
+    });
+  };
+
   // Filtering logic
   const filteredUsers = trainees.filter(u => {
     if (activeTab === 'requests') {
@@ -556,13 +594,23 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             </p>
           </div>
           {currentRole === 'admin' && !selectedTrainee && (
-            <button 
-              onClick={handleGlobalCleanup}
-              className="ml-auto w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center hover:bg-error/20 transition-all active:scale-95 border border-error/20"
-              title="Limpieza Global de Rutinas"
-            >
-              <span className="material-symbols-outlined text-xl">mop</span>
-            </button>
+            <div className="ml-auto flex gap-2">
+              <button 
+                onClick={handleStorageMigration}
+                disabled={isMigrating}
+                className={`w-10 h-10 rounded-xl bg-secondary/10 text-secondary flex items-center justify-center hover:bg-secondary/20 transition-all active:scale-95 border border-secondary/20 ${isMigrating ? 'animate-pulse opacity-50' : ''}`}
+                title="Migrar Imágenes a Cloud Storage"
+              >
+                <span className="material-symbols-outlined text-xl">{isMigrating ? 'sync' : 'cloud_sync'}</span>
+              </button>
+              <button 
+                onClick={handleGlobalCleanup}
+                className="w-10 h-10 rounded-xl bg-error/10 text-error flex items-center justify-center hover:bg-error/20 transition-all active:scale-95 border border-error/20"
+                title="Limpieza Global de Rutinas"
+              >
+                <span className="material-symbols-outlined text-xl">mop</span>
+              </button>
+            </div>
           )}
         </div>
 

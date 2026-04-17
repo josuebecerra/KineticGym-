@@ -352,6 +352,20 @@ export default function App() {
                 }
               }
             }
+          }, (error) => {
+            console.error('Error in memberships listener:', error);
+            if (error.code === 'permission-denied') {
+              setDialogConfig({
+                isOpen: true,
+                type: 'error',
+                title: 'Acceso Denegado',
+                message: 'No tienes permisos para acceder a esta información o hay un problema de seguridad (App Check).',
+                confirmText: 'Cerrar Sesión',
+                cancelText: 'Reintentar',
+                onConfirm: () => handleLogout(),
+                onCancel: () => window.location.reload()
+              });
+            }
           });
         } catch (error: any) {
           console.error("Error conectando a Firestore. Revisa las reglas de seguridad:", error);

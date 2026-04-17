@@ -88,9 +88,14 @@ export const deleteWorkoutSession = async (uid: string, session: WorkoutSession)
   }
 };
 
-// Upload a progress photo as compressed base64 string
+// Upload a progress photo to Cloud Storage
 export const uploadProgressPhoto = async (uid: string, file: File): Promise<string> => {
-  return await compressImage(file, 800);
+  const compressedBase64 = await compressImage(file, 1200); // Higher quality now that storage is professional
+  const blob = await (await fetch(compressedBase64)).blob();
+  const timestamp = new Date().getTime();
+  const fileRef = ref(storage, `progress/${uid}/${timestamp}.jpg`);
+  await uploadBytes(fileRef, blob);
+  return await getDownloadURL(fileRef);
 };
 
 // Add a new progress log
@@ -311,9 +316,13 @@ export const updateUserProfile = async (uid: string, changes: Partial<UserProfil
   await updateDoc(userRef, changes);
 };
 
-// Upload an avatar photo as compressed base64 string
+// Upload an avatar photo to Cloud Storage
 export const uploadAvatarPhoto = async (uid: string, file: File): Promise<string> => {
-  return await compressImage(file, 400);
+  const compressedBase64 = await compressImage(file, 500);
+  const blob = await (await fetch(compressedBase64)).blob();
+  const fileRef = ref(storage, `avatars/${uid}/avatar.jpg`);
+  await uploadBytes(fileRef, blob);
+  return await getDownloadURL(fileRef);
 };
 
 // Save assessment results
