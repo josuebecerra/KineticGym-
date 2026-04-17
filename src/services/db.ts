@@ -13,7 +13,8 @@ import {
   onSnapshot,
   limit,
   startAfter,
-  orderBy
+  orderBy,
+  getCountFromServer
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -492,6 +493,23 @@ export const cancelMembership = async (uid: string, reason: string) => {
     subscriptionHistory: updatedHistory,
     membershipRequest: null // Clear any requests too
   });
+};
+
+// Get Global Dashboard Statistics
+export const getGlobalDashboardStats = async () => {
+  const usersRef = collection(db, 'users');
+  const now = new Date();
+  
+  // For small/medium datasets, fetching all is more robust than managing composite indexes
+  const snapshot = await getDocs(usersRef);
+  const users = snapshot.docs.map(doc => doc.data() as UserProfile);
+
+  return {
+    total: users.length,
+    active: users.filter(u => u.role === 'trainee' && u.subscription?.status === 'active' && new Date(u.subscription.endDate) > now).length,
+    expired: users.filter(u => u.role === 'trainee' && (!u.subscription || (u.subscription.status === 'active' && new Date(u.subscription.endDate) <= now))).length,
+    pending: users.filter(u => u.membershipRequest?.status === 'pending').length
+  };
 };
 
 // Reject a membership request (Admin)

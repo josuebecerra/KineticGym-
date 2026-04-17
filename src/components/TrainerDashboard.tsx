@@ -6,7 +6,8 @@ import {
   updateUserSubscription, 
   requestElectronicInvoice,
   getUsersPaginated,
-  searchUsers
+  searchUsers,
+  getGlobalDashboardStats
 } from '../services/db';
 import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
@@ -37,6 +38,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [currentPage, setCurrentPage] = useState(1);
   const [cursorStack, setCursorStack] = useState<any[]>([null]);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [globalStats, setGlobalStats] = useState({ total: 0, active: 0, expired: 0, pending: 0 });
 
   const PAGE_SIZE = 20;
 
@@ -58,6 +60,19 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
 
     return () => clearTimeout(timer);
   }, [searchQuery, activeTab]);
+
+  useEffect(() => {
+    refreshGlobalStats();
+  }, []);
+
+  const refreshGlobalStats = async () => {
+    try {
+      const gStats = await getGlobalDashboardStats();
+      setGlobalStats(gStats);
+    } catch (error) {
+      console.error("Error fetching global stats:", error);
+    }
+  };
 
   const performGlobalSearch = async () => {
     // Silent loading for search
@@ -266,6 +281,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         message: `El plan de ${planId === '1month' ? '1 mes' : planId === '6months' ? '6 meses' : '1 año'} ha sido registrado. Comienza el ${startDate.toLocaleDateString()} y vence el ${endDate.toLocaleDateString()}.`,
         confirmText: 'EXCELENTE'
       });
+      refreshGlobalStats();
     } catch (err) {
       console.error("Error actualizando suscripción:", err);
       onShowDialog({
@@ -314,6 +330,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         message: 'La membresía ha sido revocada inmediatamente. El motivo ha quedado registrado en el historial.',
         confirmText: 'ENTENDIDO'
       });
+      refreshGlobalStats();
     } catch (err) {
       console.error(err);
     }
@@ -363,6 +380,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         message: `El plan de ${user.displayName} ha sido aprobado y activado con éxito. Inicia el ${startDate.toLocaleDateString()} y vence el ${endDate.toLocaleDateString()}.`,
         confirmText: 'EXCELENTE'
       });
+      refreshGlobalStats();
     } catch (err) {
       console.error(err);
     }
@@ -431,6 +449,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             message: `Todas las rutinas de ${selectedTrainee.displayName} han sido eliminadas.`,
             confirmText: 'ENTENDIDO'
           });
+          refreshGlobalStats();
         } catch (err) {
           console.error(err);
           onShowDialog({
@@ -460,6 +479,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             message: 'Se han eliminado todas las rutinas de todos los usuarios con éxito.',
             confirmText: 'ENTENDIDO'
           });
+          refreshGlobalStats();
           
           await loadUsers(); // Refresh list
           // CRITICAL: Update/Reset selected trainee to reflect clouds state
@@ -487,6 +507,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         message: `La petición de ${user.displayName} ha sido marcada como rechazada.`,
         confirmText: 'ENTENDIDO'
       });
+      refreshGlobalStats();
     } catch (err) {
       console.error(err);
     }
@@ -560,12 +581,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     }
   };
 
-  const stats = {
-    total: trainees.length,
-    active: trainees.filter(u => u.role === 'trainee' && u.subscription?.status === 'active' && new Date(u.subscription.endDate) > new Date()).length,
-    expired: trainees.filter(u => (u.role === 'trainee' && (!u.subscription || new Date(u.subscription.endDate) <= new Date()))).length,
-    pending: trainees.filter(u => u.membershipRequest?.status === 'pending').length
-  };
+  const stats = globalStats;
 
   const getMembershipStatus = (u: UserProfile) => {
     if (!u.subscription) return { label: 'Sin Plan', color: 'text-outline bg-outline/10' };
