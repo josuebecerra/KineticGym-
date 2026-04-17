@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { UserProfile, Routine, SubscriptionData } from '../types';
+import UserProfileView from './UserProfileView';
 import { 
   assignRoutineToUser, 
   updateUserSubscription, 
@@ -896,324 +897,33 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             </div>
           )}
 
-          {isSearchingGlobal && filteredUsers.length === 0 && !isLoading && (
-            <div className="flex flex-col items-center justify-center py-32 bg-surface-container-low/30 rounded-[48px] border-2 border-dashed border-outline-variant/10">
-              <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6 text-error">
-                <span className="material-symbols-outlined text-4xl italic">person_off</span>
-              </div>
-              <p className="text-outline text-[11px] font-black uppercase tracking-[0.4em] italic mb-2 text-error">Sin coincidencias en la base de datos</p>
-              <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest">Asegúrate de iniciar con el nombre correctamente</p>
-            </div>
-          )}
         </section>
       ) : (
-        <section className="space-y-6">
-          <div className="bg-surface-container-low p-6 rounded-[40px] border border-outline-variant/10 shadow-2xl overflow-hidden relative group">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform">
-              <span className="material-symbols-outlined text-9xl italic">person</span>
-            </div>
-
-            <div className="flex items-center gap-6 relative z-10">
-              <img src={selectedTrainee.avatarUrl || `https://ui-avatars.com/api/?name=${selectedTrainee.displayName || (selectedTrainee.email ? selectedTrainee.email.split('@')[0] : 'Alumno')}&background=CCFF00&color=121212&bold=true`} className="w-24 h-24 rounded-[32px] border-2 border-primary-container/20 shadow-xl shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black text-secondary uppercase tracking-[0.3em] mb-2 leading-none">Gestión Especializada</p>
-                <h4 className="font-headline text-3xl font-black uppercase italic leading-none truncate mb-3">{selectedTrainee.displayName || (selectedTrainee.email ? selectedTrainee.email.split('@')[0] : 'Alumno')}</h4>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-3 py-1 bg-surface-container-highest rounded-full text-[9px] font-black uppercase tracking-widest text-secondary">{selectedTrainee.role || 'TRAINEE'}</span>
-                  {selectedTrainee.trainerName ? (
-                    <span className="px-3 py-1 bg-primary-container/10 border border-primary-container/20 rounded-full text-[9px] font-black uppercase tracking-widest text-primary-container flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[14px]">school</span> {selectedTrainee.trainerName}
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 bg-error/10 border border-error/20 rounded-full text-[9px] font-black uppercase tracking-widest text-error">Sin Entrenador</span>
-                  )}
-                </div>
-
-                {/* Assigned Routines List (Individual Removal) */}
-                {selectedTrainee.assignedRoutines && selectedTrainee.assignedRoutines.length > 0 && (
-                  <div className="mt-4 space-y-3 pt-4 border-t border-outline-variant/10">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-[9px] font-black text-outline uppercase tracking-widest ml-1">Rutinas Asignadas:</p>
-                      <button 
-                        onClick={handleClearAllRoutines}
-                        className="text-[8px] font-black text-error/60 hover:text-error transition-colors uppercase tracking-widest flex items-center gap-1 bg-error/5 px-2 py-1 rounded-lg border border-error/10"
-                      >
-                        <span className="material-symbols-outlined text-[12px]">delete_sweep</span> Borrar Todas
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedTrainee.assignedRoutines.map((routine, idx) => {
-                        const routineKey = `${routine.id}-${idx}`;
-                        const isOwner = routine.authorId === currentUserUid;
-                        const isAdmin = currentRole === 'admin';
-                        const canDelete = isOwner || isAdmin;
-
-                        return (
-                          <div key={routineKey} className="flex items-center gap-2 bg-surface-container-highest px-3 py-2 rounded-xl group/routine hover:bg-surface-container-high transition-colors border border-outline-variant/5">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-black text-on-surface uppercase tracking-tight italic leading-none">{routine.name}</span>
-                              {routine.authorName && (
-                                <span className="text-[7px] font-bold text-outline uppercase tracking-widest mt-0.5">Por: {routine.authorName}</span>
-                              )}
-                            </div>
-                            {canDelete && (
-                              <button 
-                                onClick={() => handleRemoveRoutine(routineKey)}
-                                className="w-5 h-5 rounded-lg hover:bg-error/10 text-outline hover:text-error transition-all flex items-center justify-center opacity-0 group-hover/routine:opacity-100"
-                                title="Eliminar de este perfil"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">close</span>
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-8 flex gap-3 relative z-10">
-              <button onClick={() => setSelectedTrainee(null)} className="flex-1 bg-surface-container-highest py-4 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-outline hover:text-on-surface transition-all">
-                <span className="material-symbols-outlined text-lg">arrow_back</span> Volver
-              </button>
-              {currentRole === 'admin' && selectedTrainee.role === 'trainee' && (
-                <button onClick={() => setIsAssigningTrainer(!isAssigningTrainer)} className="flex-1 kinetic-gradient py-4 rounded-2xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-on-primary-container shadow-xl shadow-primary/20">
-                  <span className="material-symbols-outlined text-lg">school</span> {selectedTrainee.trainerId ? 'Cambiar PT' : 'Asignar PT'}
-                </button>
-              )}
-            </div>
-
-            {/* Admin Role Toggle (Inline) */}
-            {currentRole === 'admin' && (
-              <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-4">
-                <span className="text-[9px] font-black text-outline uppercase tracking-widest">Nivel de Acceso:</span>
-                <div className="flex gap-2">
-                  {['admin', 'trainer', 'trainee'].map(roleOption => (
-                    <button
-                      key={roleOption}
-                      onClick={() => handleRoleChange(roleOption as any)}
-                      className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                        selectedTrainee.role === roleOption 
-                          ? 'bg-secondary text-on-secondary shadow-lg' 
-                          : 'bg-surface-container-high text-outline hover:text-on-surface'
-                      }`}
-                    >
-                      {roleOption}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Admin Subscription Management (Inline) */}
-            {currentRole === 'admin' && selectedTrainee.role === 'trainee' && (
-              <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black text-outline uppercase tracking-widest">Estado Membresía:</span>
-                  <button 
-                    onClick={() => setShowHistory(!showHistory)}
-                    className="text-[8px] font-black text-secondary hover:text-white transition-colors uppercase tracking-widest flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">{showHistory ? 'visibility_off' : 'history'}</span>
-                    {showHistory ? 'Ocultar Historial' : 'Ver Historial'}
-                  </button>
-                </div>
-
-                {selectedTrainee.subscription ? (
-                  <div className="bg-surface-container-high rounded-2xl p-4 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="px-3 py-1 bg-primary-container text-on-primary-container rounded-full text-[8px] font-black uppercase tracking-widest">
-                        PLAN {selectedTrainee.subscription.planId === '1month' ? 'MENSUAL' : selectedTrainee.subscription.planId === '6months' ? 'SEMESTRAL' : 'ANUAL'}
-                      </span>
-                      <span className={`text-[8px] font-black uppercase tracking-[0.2em] ${new Date(selectedTrainee.subscription.endDate) < new Date() ? 'text-error' : 'text-primary-container'}`}>
-                        {new Date(selectedTrainee.subscription.endDate) < new Date() ? 'VENCIDO' : 'ACTIVO'}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Inició</p>
-                        <p className="text-[10px] font-black text-on-surface uppercase">{new Date(selectedTrainee.subscription.startDate).toLocaleDateString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-outline uppercase tracking-widest mb-1">Vence</p>
-                        <p className="text-[10px] font-black text-on-surface uppercase">{new Date(selectedTrainee.subscription.endDate).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-surface-container-high/50 rounded-2xl p-4 text-center border-2 border-dashed border-outline-variant/10">
-                    <p className="text-[8px] font-black text-outline uppercase tracking-widest">Sin membresía registrada</p>
-                  </div>
-                )}
-
-                {/* Renewal/Assignment Buttons */}
-                <div className="space-y-3">
-                  <p className="text-[9px] font-black text-outline uppercase tracking-widest ml-1">
-                    {selectedTrainee.subscription ? 'Renovar / Cambiar Plan:' : 'Asignar Nuevo Plan:'}
-                  </p>
-                  <div className="flex gap-2">
-                    {[
-                      { id: '1month', label: '1 Mes' },
-                      { id: '6months', label: '6 Meses' },
-                      { id: '1year', label: '1 Año' }
-                    ].map(plan => (
-                      <button
-                        key={plan.id}
-                        onClick={() => handleSubscriptionUpdate(plan.id as any)}
-                        className="flex-1 px-3 py-3 rounded-xl bg-surface-container-highest text-[9px] font-black uppercase tracking-widest text-outline hover:bg-primary-container hover:text-on-primary-container hover:shadow-lg transition-all"
-                      >
-                        {plan.label}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedTrainee.subscription && selectedTrainee.subscription.status === 'active' && (
-                    <button
-                      onClick={() => {
-                        onShowDialog({
-                          type: 'confirm',
-                          title: '¿CANCELAR MEMBRESÍA?',
-                          message: 'Se revocará el acceso de forma inmediata. Debes ingresar una justificación técnica.',
-                          showInput: true,
-                          inputPlaceholder: "Motivo de la baja...",
-                          confirmText: 'PROCESAR BAJA',
-                          onConfirm: (val) => {
-                            if (!val || val.trim().length < 4) {
-                              onShowDialog({
-                                type: 'error',
-                                title: 'JUSTIFICACIÓN REQUERIDA',
-                                message: 'Es obligatorio ingresar un motivo válido para autorizar la cancelación.',
-                                confirmText: 'REINTENTAR'
-                              });
-                              return;
-                            }
-                            handleCancelSubscription(val);
-                          }
-                        });
-                      }}
-                       className="w-full py-4 rounded-xl border-2 border-error/20 text-error text-[10px] font-black uppercase tracking-widest hover:bg-error/5 transition-all mt-2"
-                    >
-                      <span className="material-symbols-outlined text-sm align-middle mr-2">cancel</span>
-                      Cancelar Plan Vigente
-                    </button>
-                  )}
-                </div>
-
-                {/* History List */}
-                {showHistory && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-3 mt-2">
-                    <p className="text-[9px] font-black text-secondary uppercase tracking-[0.2em] ml-1">Registro Histórico</p>
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                      {(selectedTrainee.subscriptionHistory || []).slice().reverse().map((sub, idx) => (
-                        <div key={idx} className="bg-surface-container-low border border-outline-variant/10 p-3 rounded-xl flex justify-between items-center opacity-70 hover:opacity-100 transition-opacity">
-                          <div>
-                            <p className="text-[8px] font-black text-on-surface uppercase tracking-tight">
-                              Plan {sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}
-                              {sub.status === 'canceled' && <span className="ml-2 text-error font-black italic">[CANCELADO]</span>}
-                            </p>
-                            <p className="text-[7px] font-bold text-outline uppercase mt-0.5">{new Date(sub.startDate).toLocaleDateString()} - {new Date(sub.endDate).toLocaleDateString()}</p>
-                            {sub.cancelReason && (
-                              <p className="text-[7px] font-black text-error/60 uppercase mt-1 italic leading-relaxed">Motivo: {sub.cancelReason}</p>
-                            )}
-                          </div>
-                          <span className="text-[7px] font-black text-outline-variant uppercase bg-surface-container-highest px-2 py-1 rounded-full">Registro #{selectedTrainee.subscriptionHistory!.length - idx}</span>
-                        </div>
-                      ))}
-                      {(!selectedTrainee.subscriptionHistory || selectedTrainee.subscriptionHistory.length === 0) && (
-                        <p className="text-[8px] font-black text-outline uppercase tracking-widest text-center py-4 italic">No hay historial previo</p>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Trainer Assignment Modal/Section (Admin Only) */}
-          {isAssigningTrainer && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.3em] ml-2">Seleccionar Entrenador Responsable</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {allStaff
-                  .filter(staff => staff.uid !== selectedTrainee.uid) // Prevent self-assignment if trainee is somehow staff
-                  .map(staff => (
-                  <button 
-                    key={staff.uid}
-                    onClick={() => handleTrainerAssignment(staff)}
-                    className={`flex items-center gap-3 p-4 rounded-3xl border transition-all text-left ${
-                      selectedTrainee.trainerId === staff.uid 
-                        ? 'bg-secondary/10 border-secondary' 
-                        : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container-high'
-                    }`}
-                  >
-                    <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.displayName || 'Staff'}&background=CCFF00&color=121212`} className="w-10 h-10 rounded-full" />
-                    <div>
-                      <p className="font-headline font-black text-sm uppercase italic leading-none">{staff.displayName || staff.email}</p>
-                      <p className="text-[9px] font-bold text-outline uppercase tracking-[0.2em] mt-1">{staff.role}</p>
-                    </div>
-                    {selectedTrainee.trainerId === staff.uid && <span className="material-symbols-outlined text-secondary ml-auto">check_circle</span>}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Routine Assignment Section */}
-          {(currentRole === 'admin' || (currentRole === 'trainer' && selectedTrainee.trainerId === currentUserUid)) ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.3em]">Catálogo de Entrenamiento</h4>
-                <span className="text-[9px] font-bold text-outline-variant uppercase">Asignar para Hoy</span>
-              </div>
-              <div className="space-y-4">
-                {ROUTINES.map(routine => (
-                  <div key={routine.id} className="bg-surface-container-high rounded-3xl p-6 border border-outline-variant/10 group hover:border-primary-container/30 transition-all shadow-sm">
-                    <div className="flex justify-between items-start mb-4 gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
-                            {routine.level}
-                          </span>
-                        </div>
-                        <h3 className={`font-headline text-2xl font-black uppercase tracking-tight italic leading-none mb-2 ${getTitleColor(routine.level)} group-hover:text-primary-container transition-colors`}>
-                          {routine.name}
-                        </h3>
-                        <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-1 opacity-60">{routine.description}</p>
-                      </div>
-                      <button 
-                        onClick={() => handleAssign(routine)}
-                        className="bg-primary-container text-on-primary-container text-[10px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl hover:scale-105 active:scale-[0.98] transition-all shrink-0 shadow-lg shadow-primary-container/10"
-                      >
-                        Asignar Plan
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-4 text-outline text-[9px] font-black uppercase tracking-[0.3em] pt-4 border-t border-outline-variant/5">
-                      <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
-                        <span className="material-symbols-outlined text-sm opacity-50">fitness_center</span> {routine.exercisesCount} Bloques
-                      </span>
-                      <span className="flex items-center gap-1.5 bg-surface-container-low px-2.5 py-1 rounded-full">
-                        <span className="material-symbols-outlined text-sm opacity-50">category</span> {routine.category}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-surface-container-high/30 rounded-[40px] p-8 border-2 border-dashed border-outline-variant/10 text-center space-y-4">
-              <div className="w-16 h-16 bg-surface-container-high rounded-full flex items-center justify-center mx-auto">
-                <span className="material-symbols-outlined text-3xl text-outline-variant/50">lock</span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-black text-on-surface uppercase tracking-[0.3em]">Acceso Restringido</p>
-                <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed">
-                  Solo el Entrenador designado ({selectedTrainee.trainerName || 'N/A'}) <br /> puede asignar rutinas a este alumno.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
+        <UserProfileView 
+          user={selectedTrainee}
+          currentRole={currentRole}
+          currentUserUid={currentUserUid}
+          allStaff={allStaff}
+          ROUTINES={ROUTINES}
+          onBack={() => {
+            setSelectedTrainee(null);
+            setIsAssigningTrainer(false);
+          }}
+          onShowDialog={onShowDialog}
+          handleRoleChange={handleRoleChange}
+          handleSubscriptionUpdate={handleSubscriptionUpdate}
+          handleCancelSubscription={handleCancelSubscription}
+          handleRemoveRoutine={handleRemoveRoutine}
+          handleClearAllRoutines={handleClearAllRoutines}
+          handleTrainerAssignment={handleTrainerAssignment}
+          handleAssign={handleAssign}
+          getLevelColor={getLevelColor}
+          getTitleColor={getTitleColor}
+          isAssigningTrainer={isAssigningTrainer}
+          setIsAssigningTrainer={setIsAssigningTrainer}
+          showHistory={showHistory}
+          setShowHistory={setShowHistory}
+        />
       )}
       {showInvoicingConfig && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-background/80 backdrop-blur-sm">

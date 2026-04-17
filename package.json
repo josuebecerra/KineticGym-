@@ -1,6 +1,9 @@
 {
   "name": "react-example",
   "private": true,
+  "overrides": {
+    "protobufjs": "7.5.5"
+  },
   "version": "0.0.0",
   "type": "module",
   "scripts": {
