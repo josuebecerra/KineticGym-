@@ -263,13 +263,17 @@ export const searchUsers = async (searchTerm: string, pageSize: number = 20) => 
     usersRef,
     where('displayName', '>=', searchTerm),
     where('displayName', '<=', searchTerm + '\uf8ff'),
-    limit(pageSize)
+    limit(pageSize + 1)
   );
 
   const snap = await getDocs(q);
+  const hasMore = snap.docs.length > pageSize;
+  const slicedDocs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+
   return {
-    users: snap.docs.map(doc => doc.data() as UserProfile),
-    lastDoc: snap.docs[snap.docs.length - 1] || null
+    users: slicedDocs.map(doc => doc.data() as UserProfile),
+    lastDoc: hasMore ? (slicedDocs[slicedDocs.length - 1] || null) : null,
+    hasMore
   };
 };
 
@@ -313,13 +317,17 @@ export const searchInvoices = async (searchTerm: string, pageSize: number = 20) 
     invoicesRef,
     where('receptorName', '>=', searchTerm.toUpperCase()),
     where('receptorName', '<=', searchTerm.toUpperCase() + '\uf8ff'),
-    limit(pageSize)
+    limit(pageSize + 1)
   );
 
   const snap = await getDocs(q);
+  const hasMore = snap.docs.length > pageSize;
+  const slicedDocs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+
   return {
-    invoices: snap.docs.map(doc => doc.data() as Invoice),
-    lastDoc: snap.docs[snap.docs.length - 1] || null
+    invoices: slicedDocs.map(doc => doc.data() as Invoice),
+    lastDoc: hasMore ? (slicedDocs[slicedDocs.length - 1] || null) : null,
+    hasMore
   };
 };
 
