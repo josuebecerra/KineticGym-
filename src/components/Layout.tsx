@@ -30,7 +30,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeScreen, onScreen
         <div className="flex justify-between items-center px-6 py-4 max-w-5xl mx-auto w-full">
           {/* Logo */}
           <div className="flex items-center gap-3 sm:gap-8">
-            <span className="font-headline font-black italic text-primary-container tracking-tighter text-xl sm:text-2xl">KINETIC</span>
+            <button 
+              onClick={() => onScreenChange('inicio')}
+              className="hover:opacity-80 active:scale-95 transition-all outline-none"
+            >
+              <span className="font-headline font-black italic text-primary-container tracking-tighter text-xl sm:text-2xl">KINETIC</span>
+            </button>
             
             {/* Nav - Desktop Only */}
             <nav className="hidden md:flex items-center gap-8">

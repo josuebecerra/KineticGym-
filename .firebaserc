@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "kinetic-647bb"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

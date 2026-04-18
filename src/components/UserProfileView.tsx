@@ -140,13 +140,13 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
               >
                 <span className="material-symbols-outlined text-lg">arrow_back</span> Volver al Directorio
               </button>
-              {currentRole === 'admin' && user.role === 'trainee' && (
+              {(currentRole === 'admin' || currentRole === 'trainer') && user.role === 'trainee' && (
                 <button 
                   onClick={() => setIsAssigningTrainer(!isAssigningTrainer)}
                   className="w-full py-4 rounded-2xl kinetic-gradient text-black text-[10px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
                 >
-                  <span className="material-symbols-outlined text-base">school</span> 
-                  {user.trainerId ? 'Cambiar PT' : 'Asignar PT'}
+                  <span className="material-symbols-outlined text-base">sports</span> 
+                  COACHES
                 </button>
               )}
             </div>
@@ -673,6 +673,91 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Trainer Selection Modal */}
+      <AnimatePresence>
+        {isAssigningTrainer && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 cursor-default">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAssigningTrainer(false)}
+              className="absolute inset-0 bg-background/80 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-surface-container-low border border-outline-variant/20 rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            >
+              <div className="p-8 border-b border-outline-variant/10">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-headline text-2xl font-black uppercase italic text-white leading-none">SELECCIONAR COACH</h3>
+                  <button 
+                    onClick={() => setIsAssigningTrainer(false)}
+                    className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-outline hover:text-white transition-colors"
+                  >
+                    <span className="material-symbols-outlined">close</span>
+                  </button>
+                </div>
+                <p className="text-[10px] font-black text-secondary uppercase tracking-[0.3em] italic">Vincular responsable técnico</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+                {allStaff
+                  .filter(staff => staff.uid !== user.uid)
+                  .map(staff => (
+                    <button 
+                      key={staff.uid}
+                      onClick={() => handleTrainerAssignment(staff)}
+                      className={`w-full flex items-center gap-4 p-4 rounded-3xl border transition-all text-left group ${
+                        user.trainerId === staff.uid 
+                          ? 'bg-secondary/10 border-secondary' 
+                          : 'bg-surface-container-high/50 border-outline-variant/5 hover:bg-surface-container-high hover:border-outline-variant/20'
+                      }`}
+                    >
+                      <img 
+                        src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.displayName || 'Staff'}&background=CCFF00&color=121212`} 
+                        className="w-12 h-12 rounded-2xl border border-outline-variant/10 shadow-lg object-cover" 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black uppercase italic truncate text-white leading-none mb-1 group-hover:text-secondary transition-colors">
+                          {staff.displayName || staff.email}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                            staff.role === 'admin' ? 'border-error/20 text-error' : 'border-secondary/20 text-secondary font-black'
+                          }`}>
+                            {staff.role}
+                          </span>
+                        </div>
+                      </div>
+                      {user.trainerId === staff.uid ? (
+                        <span className="material-symbols-outlined text-secondary font-black">verified</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-outline/20 group-hover:text-secondary/50 transition-colors">add_circle</span>
+                      )}
+                    </button>
+                  ))}
+                {allStaff.length === 0 && (
+                  <div className="py-20 text-center space-y-4">
+                    <span className="material-symbols-outlined text-4xl text-outline/20 animate-pulse">group_off</span>
+                    <p className="text-[10px] text-outline/30 italic uppercase tracking-widest">No hay staff disponible para asignar</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 bg-surface-container-high/30 border-t border-outline-variant/10">
+                <p className="text-[8px] font-black text-outline/40 text-center uppercase tracking-widest italic">
+                  Kinetic Staff Management • 2026
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

@@ -7,6 +7,7 @@ import {
   updateUserSubscription, 
   requestElectronicInvoice,
   getUsersPaginated,
+  getStaffUsers,
   searchUsers,
   getGlobalDashboardStats
 } from '../services/db';
@@ -31,6 +32,10 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [isAssigningTrainer, setIsAssigningTrainer] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests' | 'invoices'>('trainee');
+  const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
+    field: 'displayName', 
+    direction: 'asc' 
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [showInvoicingConfig, setShowInvoicingConfig] = useState(false);
   const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
@@ -41,7 +46,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [isMigrating, setIsMigrating] = useState(false);
   const [globalStats, setGlobalStats] = useState({ total: 0, active: 0, expired: 0, pending: 0 });
 
-  const PAGE_SIZE = 20;
+  const [pageSize, setPageSize] = useState(5);
 
   // Unified effect for search, tab changes and initial load
   useEffect(() => {
@@ -60,11 +65,21 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, pageSize]);
 
   useEffect(() => {
     refreshGlobalStats();
+    loadStaff();
   }, []);
+
+  const loadStaff = async () => {
+    try {
+      const staff = await getStaffUsers();
+      setAllStaff(staff);
+    } catch (error) {
+      console.error("Error fetching staff for assignment:", error);
+    }
+  };
 
   const refreshGlobalStats = async () => {
     try {
@@ -80,10 +95,10 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     setIsLoading(false); // In case it was true, don't flicker full screen
     setIsSearchingGlobal(true);
     try {
-      const { users, lastDoc } = await searchUsers(searchQuery, PAGE_SIZE);
+      const { users, lastDoc, hasMore: more } = await searchUsers(searchQuery, pageSize);
       setTrainees(users);
       setLastVisibleDoc(lastDoc);
-      setHasMore(users.length === PAGE_SIZE);
+      setHasMore(more);
     } catch (error) {
       console.error("Error searching users:", error);
     } finally {
@@ -116,10 +131,12 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       }
 
       const cursor = stack[page - 1];
-      const { users, lastDoc } = await getUsersPaginated(
-        PAGE_SIZE, 
+      const { users, lastDoc, hasMore: more } = await getUsersPaginated(
+        pageSize, 
         cursor,
-        filters
+        filters,
+        sortConfig.field,
+        sortConfig.direction
       );
       
       setTrainees(users);
@@ -129,19 +146,36 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       }
 
       setCurrentPage(page);
-      setHasMore(users.length === PAGE_SIZE);
-
-      // Store all staff for assignment dropdown (admin only)
-      if (currentRole === 'admin') {
-        const staff = users.filter(u => u.role === 'admin' || u.role === 'trainer');
-        setAllStaff(staff);
-      }
-    } catch (error) {
-      console.error("Error cargando usuarios:", error);
+      setHasMore(more);
+    } catch (err) {
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleSort = (field: string) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    // Reset to first page on sort change
+    setCursorStack([null]);
+    setCurrentPage(1);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCursorStack([null]);
+    setCurrentPage(1);
+  };
+
+  // Trigger reload on sort change or page size change
+  useEffect(() => {
+    if (!selectedTrainee) {
+      loadUsers(1, [null]);
+    }
+  }, [sortConfig, pageSize]);
 
   const handleAssign = async (routine: Routine) => {
     if (!selectedTrainee) return;
@@ -200,7 +234,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       onShowDialog({
         type: 'success',
         title: 'COACH ASIGNADO',
-        message: `Has vinculado a ${trainer.displayName} como el nuevo coach oficial de ${selectedTrainee.displayName}.`,
+        message: 'El nuevo coach ha sido vinculado exitosamente a este perfil.',
         confirmText: 'GENIAL'
       });
     } catch (err) {
@@ -597,7 +631,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     <motion.div 
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      className="px-6 pt-4 space-y-8 pb-32"
+      className="px-3 sm:px-6 pt-4 space-y-6 sm:space-y-8 pb-32"
     >
       <header className="flex flex-col gap-6">
         <div className="flex items-center gap-3 sm:gap-4">
@@ -722,7 +756,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         <section className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1 sm:px-4">
             <div className="flex items-center gap-4">
-              <h3 className="text-[9px] sm:text-[10px] font-black tracking-[0.3em] sm:tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
+              <h3 className="text-[9px] sm:text-[10px] font-black tracking-[0.2em] sm:tracking-[0.4em] uppercase text-on-surface-variant flex items-center gap-2">
                 <span className="w-4 sm:w-6 h-px bg-outline-variant/30" />
                 Directorio de {activeTab === 'trainee' ? 'Clientes' : activeTab === 'trainer' ? 'Staff' : 'Control'}
               </h3>
@@ -731,7 +765,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
               </div>
             </div>
 
-            <div className="relative group min-w-[280px]">
+            <div className="relative group flex-1 sm:min-w-[280px]">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg group-focus-within:text-secondary transition-colors">search</span>
               <input 
                 type="text" 
@@ -750,23 +784,47 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           
           <div className="bg-surface-container-low rounded-[40px] border border-outline-variant/10 overflow-hidden shadow-2xl">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-surface-container-high/50 border-b border-outline-variant/10 italic">
-                    <th className="px-6 py-5 text-left">
-                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Cliente</span>
+                  <tr className="bg-surface-container-high/50 border-b border-outline-variant/10">
+                    <th className="px-6 py-5">
+                      <button 
+                        onClick={() => handleSort('displayName')}
+                        className="flex items-center gap-1.5 group outline-none"
+                      >
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Cliente</span>
+                        <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'displayName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                          {sortConfig.field === 'displayName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      </button>
                     </th>
-                    <th className="px-6 py-5 text-left hidden sm:table-cell">
-                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Rol</span>
+                    <th className="px-6 py-5">
+                      <button 
+                        onClick={() => handleSort('role')}
+                        className="flex items-center gap-1.5 group outline-none"
+                      >
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Rol</span>
+                        <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'role' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                          {sortConfig.field === 'role' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      </button>
                     </th>
-                    <th className="px-6 py-5 text-left">
-                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Estado</span>
+                    <th className="px-6 py-5">
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em]">Estado</span>
                     </th>
-                    <th className="px-6 py-5 text-left hidden md:table-cell">
-                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Coach</span>
+                    <th className="px-6 py-5 hidden md:table-cell">
+                      <button 
+                        onClick={() => handleSort('trainerName')}
+                        className="flex items-center gap-1.5 group outline-none"
+                      >
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Coach</span>
+                        <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'trainerName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                          {sortConfig.field === 'trainerName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                        </span>
+                      </button>
                     </th>
                     <th className="px-6 py-5 text-right">
-                      <span className="text-[10px] font-black text-outline uppercase tracking-[0.3em]">Acciones</span>
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em]">Acciones</span>
                     </th>
                   </tr>
                 </thead>
@@ -782,26 +840,26 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                         onClick={() => { setSelectedTrainee(t); window.scrollTo(0, 0); }}
                         className="group hover:bg-white/5 transition-colors cursor-pointer"
                       >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-4">
+                        <td className="px-3 sm:px-6 py-4">
+                          <div className="flex items-center gap-3 sm:gap-4">
                             <div className="relative shrink-0">
                               <img 
                                 src={t.avatarUrl || `https://ui-avatars.com/api/?name=${t.displayName || (t.email ? t.email.split('@')[0] : 'Alumno')}&background=${t.role === 'admin' ? 'FF4444' : 'CCFF00'}&color=121212&bold=true`} 
-                                className="w-10 h-10 rounded-xl border border-outline-variant/10 group-hover:border-secondary/30 transition-colors shadow-lg" 
+                                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-outline-variant/10 group-hover:border-secondary/30 transition-colors shadow-lg" 
                               />
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-headline font-black text-sm uppercase tracking-tight group-hover:text-secondary transition-colors truncate">{t.displayName || (t.email ? t.email.split('@')[0] : 'Usuario')}</p>
-                              <p className="text-outline text-[8px] font-bold uppercase tracking-widest truncate opacity-50 italic">{t.email}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-headline font-black text-xs sm:text-sm uppercase tracking-tight group-hover:text-secondary transition-colors truncate">{t.displayName || (t.email ? t.email.split('@')[0] : 'Usuario')}</p>
+                              <p className="text-outline text-[7px] sm:text-[8px] font-bold uppercase tracking-widest truncate opacity-50 italic">{t.email}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 hidden sm:table-cell">
+                        <td className="px-3 sm:px-6 py-4 hidden sm:table-cell">
                           <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getRoleColor(t.role || 'trainee')}`}>
                             {t.role || 'trainee'}
                           </span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 sm:px-6 py-4">
                           <div className="flex flex-col gap-1">
                             <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit ${status.color}`}>
                               {status.label}
@@ -816,15 +874,15 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                         <td className="px-6 py-4 hidden md:table-cell text-xs">
                           {t.role === 'trainee' ? (
                             <div className={`flex items-center gap-2 ${t.trainerName ? 'text-secondary' : 'text-outline/40 italic'}`}>
-                              <span className="material-symbols-outlined text-sm">{t.trainerName ? 'school' : 'person_off'}</span>
+                              <span className="material-symbols-outlined text-sm">{t.trainerName ? 'sports' : 'person_off'}</span>
                               <span className="text-[9px] font-black uppercase tracking-wider">{t.trainerName || 'Sin asignar'}</span>
                             </div>
                           ) : (
                             <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">---</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-3 sm:px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 sm:gap-2">
                             {activeTab === 'requests' && (
                               <>
                                 <button 
@@ -860,40 +918,85 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
             )}
           </div>
 
-          {/* Pagination Footer */}
+          {/* Premium Pagination */}
           {!isSearchingGlobal && (
-            <div className="flex items-center justify-between px-6 py-4 bg-surface-container-low border border-outline-variant/10 rounded-[32px] mx-0.5 mt-4">
-              <div className="flex items-center gap-4">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); loadUsers(currentPage - 1); }}
-                  disabled={currentPage === 1 || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${currentPage === 1 || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
-                >
-                  <span className="material-symbols-outlined text-lg">chevron_left</span>
-                  Anterior
-                </button>
-                
-                <div className="flex items-center gap-2 px-6 py-2.5 bg-surface-container-high/30 rounded-2xl border border-outline-variant/5">
-                  <span className="text-[9px] font-black text-outline uppercase tracking-widest">Página</span>
-                  <span className="text-base font-black italic text-secondary">{currentPage}</span>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-6 py-8">
+              <div className="flex items-center gap-6 order-2 sm:order-1">
+                {/* Rows Selector */}
+                <div className="flex items-center gap-3 px-4 py-2 bg-surface-container-high/30 rounded-2xl border border-outline-variant/10">
+                  <span className="text-[9px] font-black text-outline uppercase tracking-widest whitespace-nowrap">Filas</span>
+                  <div className="flex items-center gap-1">
+                    {[5, 10, 20, 50].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => handlePageSizeChange(size)}
+                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                          pageSize === size 
+                            ? 'bg-secondary text-background shadow-[0_0_10px_rgba(202,253,0,0.2)]' 
+                            : 'text-outline hover:text-white hover:bg-surface-container-high'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <button 
-                  onClick={(e) => { e.stopPropagation(); loadUsers(currentPage + 1); }}
-                  disabled={!hasMore || isLoading}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${!hasMore || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
-                >
-                  Siguiente
-                  <span className="material-symbols-outlined text-lg">chevron_right</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button 
+                    onClick={() => loadUsers(currentPage - 1)}
+                    disabled={currentPage === 1 || isLoading}
+                    className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-outline hover:text-secondary hover:border-secondary/30 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                  >
+                    <span className="material-symbols-outlined text-xl">chevron_left</span>
+                  </button>
+                  
+                  <div className="flex items-center gap-1.5 mx-2">
+                    {Array.from({ length: Math.max(currentPage, cursorStack.length) }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => loadUsers(pageNum)}
+                        className={`min-w-[40px] h-10 rounded-xl font-headline font-black italic text-[11px] transition-all border ${
+                          currentPage === pageNum 
+                            ? 'bg-secondary text-background border-secondary transform scale-110 shadow-[0_0_15px_rgba(202,253,0,0.3)]' 
+                            : 'bg-surface-container-low text-outline border-outline-variant/10 hover:border-secondary/40 hover:text-white'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                    {hasMore && (
+                      <button
+                        onClick={() => loadUsers(currentPage + 1)}
+                        className="min-w-[40px] h-10 rounded-xl bg-surface-container-low text-outline-variant/30 border border-outline-variant/10 font-headline font-black italic text-[11px] flex items-center justify-center gap-0.5 hover:text-white hover:border-secondary/40 transition-all"
+                      >
+                        ...
+                      </button>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={() => loadUsers(currentPage + 1)}
+                    disabled={!hasMore || isLoading}
+                    className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-outline hover:text-secondary hover:border-secondary/30 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                  >
+                    <span className="material-symbols-outlined text-xl">chevron_right</span>
+                  </button>
+                </div>
               </div>
 
-              {isLoading && (
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
-                  <span className="text-[9px] font-black text-outline uppercase tracking-widest animate-pulse">Cargando...</span>
+              <div className="flex items-center gap-4 sm:ml-auto order-1 sm:order-2">
+                {isLoading && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
+                    <span className="text-[9px] font-black text-outline uppercase tracking-widest animate-pulse">Cargando...</span>
+                  </div>
+                )}
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-outline uppercase tracking-widest leading-none">Página Actual</p>
+                  <p className="text-xl font-headline font-black italic text-secondary mt-1">{currentPage}</p>
                 </div>
-              )}
+              </div>
             </div>
           )}
 

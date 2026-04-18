@@ -18,6 +18,12 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
   const [lastVisibleDoc, setLastVisibleDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'trainee' | 'trainer' | 'admin' | 'requests' | 'invoices'>('trainee');
+  const [sortConfig, setSortConfig] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
+    field: 'date', 
+    direction: 'desc' 
+  });
+  const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
   const [cursorStack, setCursorStack] = useState<any[]>([null]);
 
@@ -69,24 +75,46 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
     
     try {
       const cursor = stack[page - 1];
-      const { invoices: data, lastDoc } = await getInvoicesPaginated(PAGE_SIZE, cursor);
+      const { invoices: data, lastDoc, hasMore: more } = await getInvoicesPaginated(
+        pageSize, 
+        cursor,
+        sortConfig.field,
+        sortConfig.direction
+      );
       
       setInvoices(data);
       
-      // If we're moving to a NEW page (not going back), plus we have a lastDoc, 
-      // prepare the next cursor if it doesn't exist in stack yet
       if (lastDoc && stack.length <= page) {
         setCursorStack([...stack, lastDoc]);
       }
 
       setCurrentPage(page);
-      setHasMore(data.length === PAGE_SIZE);
+      setHasMore(more);
     } catch (error) {
       console.error("Error loading invoices:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleSort = (field: string) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setCursorStack([null]);
+    setCurrentPage(1);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCursorStack([null]);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    loadInvoices(1, [null]);
+  }, [sortConfig, pageSize]);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -190,10 +218,42 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-high/50 border-b border-outline-variant/10">
-                <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest">Fecha</th>
-                <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest">Receptor / Cliente</th>
-                <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest">Consecutivo</th>
-                <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest">Total</th>
+                <th className="px-6 py-4">
+                  <button 
+                    onClick={() => handleSort('date')}
+                    className="flex items-center gap-1.5 group outline-none"
+                  >
+                    <span className="text-[9px] font-black text-outline uppercase tracking-widest group-hover:text-secondary transition-colors">Fecha</span>
+                    <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'date' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                      {sortConfig.field === 'date' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                    </span>
+                  </button>
+                </th>
+                <th className="px-6 py-4">
+                  <button 
+                    onClick={() => handleSort('receptorName')}
+                    className="flex items-center gap-1.5 group outline-none"
+                  >
+                    <span className="text-[9px] font-black text-outline uppercase tracking-widest group-hover:text-secondary transition-colors">Receptor / Cliente</span>
+                    <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'receptorName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                      {sortConfig.field === 'receptorName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                    </span>
+                  </button>
+                </th>
+                <th className="px-6 py-4">
+                  <span className="text-[9px] font-black text-outline uppercase tracking-widest">Consecutivo</span>
+                </th>
+                <th className="px-6 py-4">
+                  <button 
+                    onClick={() => handleSort('total')}
+                    className="flex items-center gap-1.5 group outline-none"
+                  >
+                    <span className="text-[9px] font-black text-outline uppercase tracking-widest group-hover:text-secondary transition-colors">Total</span>
+                    <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'total' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
+                      {sortConfig.field === 'total' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                    </span>
+                  </button>
+                </th>
                 <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest">Estado</th>
                 <th className="px-6 py-4 text-[9px] font-black text-outline uppercase tracking-widest text-right">Acción</th>
               </tr>
@@ -245,40 +305,85 @@ export const InvoicingDashboard: React.FC<InvoicingDashboardProps> = ({ onOpenCo
         )}
       </div>
 
-      {/* Pagination Footer */}
+      {/* Premium Pagination */}
       {!isSearchingGlobal && (
-        <div className="flex items-center justify-between px-6 py-4 bg-surface-container-low border border-outline-variant/10 rounded-[24px] mx-2">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => loadInvoices(currentPage - 1)}
-              disabled={currentPage === 1 || isLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${currentPage === 1 || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
-            >
-              <span className="material-symbols-outlined text-lg">chevron_left</span>
-              Anterior
-            </button>
-            
-            <div className="flex items-center gap-2 px-6 py-2 bg-surface-container-high/30 rounded-xl border border-outline-variant/5">
-              <span className="text-[9px] font-black text-outline uppercase tracking-widest">Página</span>
-              <span className="text-sm font-black italic text-secondary">{currentPage}</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-6 py-8 bg-surface-container-low border border-outline-variant/10 rounded-[32px] mx-2">
+          <div className="flex items-center gap-6 order-2 sm:order-1">
+            {/* Rows Selector */}
+            <div className="flex items-center gap-3 px-4 py-2 bg-surface-container-high/30 rounded-2xl border border-outline-variant/10">
+              <span className="text-[9px] font-black text-outline uppercase tracking-widest whitespace-nowrap">Filas</span>
+              <div className="flex items-center gap-1">
+                {[5, 10, 20, 50].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => handlePageSizeChange(size)}
+                    className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                      pageSize === size 
+                        ? 'bg-secondary text-background shadow-[0_0_10px_rgba(202,253,0,0.2)]' 
+                        : 'text-outline hover:text-white hover:bg-surface-container-high'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <button 
-              onClick={() => loadInvoices(currentPage + 1)}
-              disabled={!hasMore || isLoading}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${!hasMore || isLoading ? 'bg-surface-container-high/50 text-outline-variant/30 border-outline-variant/10 cursor-not-allowed' : 'bg-secondary/10 border-secondary/20 text-secondary hover:bg-secondary/20'}`}
-            >
-              Siguiente
-              <span className="material-symbols-outlined text-lg">chevron_right</span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button 
+                onClick={() => loadInvoices(currentPage - 1)}
+                disabled={currentPage === 1 || isLoading}
+                className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-outline hover:text-secondary hover:border-secondary/30 disabled:opacity-20 disabled:pointer-events-none transition-all"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_left</span>
+              </button>
+              
+              <div className="flex items-center gap-1.5 mx-2">
+                {Array.from({ length: Math.max(currentPage, cursorStack.length) }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => loadInvoices(pageNum)}
+                    className={`min-w-[40px] h-10 rounded-xl font-headline font-black italic text-[11px] transition-all border ${
+                      currentPage === pageNum 
+                        ? 'bg-secondary text-background border-secondary transform scale-110 shadow-[0_0_15px_rgba(202,253,0,0.3)]' 
+                        : 'bg-surface-container-low text-outline border-outline-variant/10 hover:border-secondary/40 hover:text-white'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={() => loadInvoices(currentPage + 1)}
+                    className="min-w-[40px] h-10 rounded-xl bg-surface-container-low text-outline-variant/30 border border-outline-variant/10 font-headline font-black italic text-[11px] flex items-center justify-center gap-0.5 hover:text-white hover:border-secondary/40 transition-all"
+                  >
+                    ...
+                  </button>
+                )}
+              </div>
+
+              <button 
+                onClick={() => loadInvoices(currentPage + 1)}
+                disabled={!hasMore || isLoading}
+                className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-outline hover:text-secondary hover:border-secondary/30 disabled:opacity-20 disabled:pointer-events-none transition-all"
+              >
+                <span className="material-symbols-outlined text-xl">chevron_right</span>
+              </button>
+            </div>
           </div>
 
-          {isLoading && (
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
-              <span className="text-[8px] font-black text-outline uppercase tracking-widest animate-pulse">Sincronizando...</span>
+          <div className="flex items-center gap-4 sm:ml-auto order-1 sm:order-2">
+            {isLoading && (
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 border-2 border-outline-variant/10 border-t-secondary rounded-full animate-spin" />
+                <span className="text-[9px] font-black text-outline uppercase tracking-widest animate-pulse">Cargando...</span>
+              </div>
+            )}
+            <div className="text-right">
+              <p className="text-[9px] font-black text-outline uppercase tracking-widest leading-none">Página Actual</p>
+              <p className="text-xl font-headline font-black italic text-secondary mt-1">{currentPage}</p>
             </div>
-          )}
+          </div>
         </div>
       )}
 

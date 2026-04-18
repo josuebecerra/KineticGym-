@@ -40,6 +40,43 @@ export const Dialog: React.FC<DialogProps> = ({
     if (isOpen) setInputValue('');
   }, [isOpen]);
 
+  const handleConfirm = () => {
+    if (onConfirm) onConfirm(showInput ? inputValue : undefined);
+    onClose();
+  };
+
+  const handleCancel = () => {
+    if (onCancel) onCancel();
+    onClose();
+  };
+
+  const getIcon = () => {
+    switch (type) {
+      case 'confirm': return 'help';
+      case 'success': return 'check_circle';
+      case 'error': return 'error';
+      default: return 'info';
+    }
+  };
+
+  const getIconColor = () => {
+    switch (type) {
+      case 'success': return 'bg-primary-container/20 text-primary-container';
+      case 'error': return 'bg-error/10 text-error';
+      case 'confirm': return 'bg-secondary/20 text-secondary';
+      default: return 'bg-surface-container-highest text-outline';
+    }
+  };
+
+  const getButtonVariant = () => {
+    switch (type) {
+      case 'error': return 'error';
+      case 'confirm': return 'secondary';
+      case 'success': return 'secondary';
+      default: return 'primary';
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (

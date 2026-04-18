@@ -29,12 +29,14 @@ if (typeof window !== 'undefined') {
       (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
     }
 
-    if (!isPlaceholder) {
+    if (!isPlaceholder && !import.meta.env.DEV) {
       initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),
         isTokenAutoRefreshEnabled: true
       });
-    } else if (!import.meta.env.DEV) {
+    } else if (import.meta.env.DEV) {
+      console.info("App Check: Running in DEV mode. If you see security errors in Firestore, register your debug token in the Firebase Console.");
+    } else if (!isPlaceholder) {
       console.warn("App Check ignored: Missing VITE_RECAPTCHA_SITE_KEY in production.");
     }
   } catch (err) {

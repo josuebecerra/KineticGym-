@@ -201,10 +201,18 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
 export const getUsersPaginated = async (
   pageSize: number, 
   lastVisibleDoc: any = null,
-  filters?: { role?: string, trainerId?: string, membershipRequestStatus?: string }
+  filters?: { role?: string, trainerId?: string, membershipRequestStatus?: string },
+  sortField: string = 'displayName',
+  sortDirection: 'asc' | 'desc' = 'asc'
 ) => {
   const usersRef = collection(db, 'users');
-  let constraints: any[] = [orderBy('displayName'), limit(pageSize)];
+  let constraints: any[] = [orderBy(sortField, sortDirection), limit(pageSize + 1)];
+
+  // If we sort by something other than displayName, we might still want displayName 
+  // as a secondary sort to ensure stable pagination
+  if (sortField !== 'displayName') {
+    constraints.splice(1, 0, orderBy('displayName', 'asc'));
+  }
 
   if (filters?.role) {
     constraints.unshift(where('role', '==', filters.role));
@@ -223,10 +231,26 @@ export const getUsersPaginated = async (
   const q = query(usersRef, ...constraints);
   const snap = await getDocs(q);
   
+  const hasMore = snap.docs.length > pageSize;
+  const slicedDocs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+  
   return {
-    users: snap.docs.map(doc => doc.data() as UserProfile),
-    lastDoc: snap.docs[snap.docs.length - 1] || null
+    users: slicedDocs.map(doc => doc.data() as UserProfile),
+    lastDoc: hasMore ? (slicedDocs[slicedDocs.length - 1] || null) : null,
+    hasMore
   };
+};
+
+// Get all staff members (Admins and Trainers)
+export const getStaffUsers = async (): Promise<UserProfile[]> => {
+  const usersRef = collection(db, 'users');
+  const q = query(
+    usersRef,
+    where('role', 'in', ['admin', 'trainer']),
+    orderBy('displayName')
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => doc.data() as UserProfile);
 };
 
 // Global User Search (Prefix match on displayName)
@@ -250,22 +274,33 @@ export const searchUsers = async (searchTerm: string, pageSize: number = 20) => 
 };
 
 // Paginated Invoices Fetch
-export const getInvoicesPaginated = async (pageSize: number, lastVisibleDoc: any = null) => {
+export const getInvoicesPaginated = async (
+  pageSize: number, 
+  lastVisibleDoc: any = null,
+  sortField: string = 'date',
+  sortDirection: 'asc' | 'desc' = 'desc'
+) => {
   const invoicesRef = collection(db, 'invoices');
-  let q = query(
-    invoicesRef, 
-    orderBy('date', 'desc'), 
-    limit(pageSize)
-  );
-
-  if (lastVisibleDoc) {
-    q = query(invoicesRef, orderBy('date', 'desc'), startAfter(lastVisibleDoc), limit(pageSize));
+  let constraints: any[] = [orderBy(sortField, sortDirection), limit(pageSize + 1)];
+  
+  if (sortField !== 'date') {
+    constraints.splice(1, 0, orderBy('date', 'desc'));
   }
 
+  if (lastVisibleDoc) {
+    constraints.push(startAfter(lastVisibleDoc));
+  }
+
+  const q = query(invoicesRef, ...constraints);
   const snap = await getDocs(q);
+
+  const hasMore = snap.docs.length > pageSize;
+  const slicedDocs = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+
   return {
-    invoices: snap.docs.map(doc => doc.data() as Invoice),
-    lastDoc: snap.docs[snap.docs.length - 1] || null
+    invoices: slicedDocs.map(doc => doc.data() as Invoice),
+    lastDoc: hasMore ? (slicedDocs[slicedDocs.length - 1] || null) : null,
+    hasMore
   };
 };
 
