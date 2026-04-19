@@ -129,9 +129,9 @@ export const Progress: React.FC<ProgressProps> = ({ user, userProfile, logs, onA
 
   return (
     <motion.div 
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="px-6 pt-4 pb-24 space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="px-6 pt-4 pb-24 space-y-8 w-full"
     >
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">

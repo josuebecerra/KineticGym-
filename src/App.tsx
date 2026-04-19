@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Screen, WorkoutSession, Routine, ProgressLog, WorkoutState, UserProfile, RestState } from './types';
 import { Layout } from './components/Layout';
 import { Home } from './components/Home';
@@ -352,14 +353,18 @@ export default function App() {
                 }
               }
             }
-          }, (error) => {
-            console.error('Error in memberships listener:', error);
+          }, (error: any) => {
+            console.error(`ERROR [USER_DATA_LISTENER] [${new Date().toISOString()}]:`, {
+              code: error.code,
+              message: error.message,
+              uid: currentUser.uid
+            });
             if (error.code === 'permission-denied') {
               setDialogConfig({
                 isOpen: true,
                 type: 'error',
                 title: 'Acceso Denegado',
-                message: 'No tienes permisos para acceder a esta información o hay un problema de seguridad (App Check).',
+                message: 'No tienes permisos para acceder o hay un problema de seguridad (App Check). Por favor, reintenta o contacta soporte.',
                 confirmText: 'Cerrar Sesión',
                 cancelText: 'Reintentar',
                 onConfirm: () => handleLogout(),
@@ -368,12 +373,12 @@ export default function App() {
             }
           });
         } catch (error: any) {
-          console.error("Error conectando a Firestore. Revisa las reglas de seguridad:", error);
+          console.error(`ERROR [AUTH_INITIALIZATION] [${new Date().toISOString()}]:`, error);
           if (error.code === 'permission-denied') {
             showDialog({
               type: 'error',
               title: 'ACCESO DENEGADO',
-              message: 'Tu perfil no tiene permisos suficientes en Firestore para esta operación. Revisa la consola de Firebase.',
+              message: 'Error de permisos críticos al inicializar el perfil. Revisa la consola.',
               confirmText: 'ENTENDIDO'
             });
           }
@@ -649,7 +654,85 @@ export default function App() {
 
   return (
     <Layout activeScreen={activeScreen} onScreenChange={setActiveScreen} userProfile={userProfile} onLogout={handleLogout}>
-      {renderScreen()}
+      <div className="flex-1 flex flex-col relative w-full h-full">
+        {/* Renderizamos todas las pantallas principales en paralelo pero solo mostramos la activa */}
+        <div className={activeScreen === 'inicio' ? "block" : "hidden"}>
+          <Home 
+            sessions={history} 
+            progress={progress}
+            exercises={EXERCISES} 
+            onNavigate={setActiveScreen}
+            onStartRoutine={handleStartRoutine}
+            assignedRoutines={userProfile?.assignedRoutines || []}
+            gymInfo={gymInfo}
+            userProfile={userProfile}
+          />
+        </div>
+
+        <div className={activeScreen === 'entrenar' ? "block" : "hidden"}>
+          <Workout 
+            onFinish={handleAddSession} 
+            sessions={history}
+            initialRoutine={preSelectedRoutine} 
+            onCancel={() => setPreSelectedRoutine(null)}
+            workoutState={workoutState}
+            setWorkoutState={setWorkoutState}
+            restState={restState}
+            setRestState={setRestState}
+            onScreenChange={setActiveScreen}
+            userRole={userProfile?.role}
+            assignedRoutines={userProfile?.assignedRoutines || []}
+            onShowDialog={showDialog}
+          />
+        </div>
+
+        <div className={activeScreen === 'historial' ? "block" : "hidden"}>
+          <History sessions={history} onDeleteSession={handleDeleteSession} onShowDialog={showDialog} />
+        </div>
+
+        <div className={activeScreen === 'descanso' ? "block" : "hidden"}>
+          <Rest restState={restState} setRestState={setRestState} onBack={() => setActiveScreen('entrenar')} />
+        </div>
+
+        <div className={activeScreen === 'explorar' ? "block" : "hidden"}>
+          <Hub onNavigate={setActiveScreen} userProfile={userProfile} />
+        </div>
+
+        {/* Las pantallas menos frecuentes o de sub-nivel las seguimos renderizando dinámicamente para no sobrecargar la memoria si no es necesario */}
+        {activeScreen === 'ejercicios' && <Exercises onBack={() => setActiveScreen('explorar')} />}
+        {activeScreen === 'progreso' && (
+          <Progress 
+            user={user}
+            userProfile={userProfile!}
+            logs={progress} 
+            onAdd={handleAddProgressLog} 
+            onEditAssessment={() => setIsEditingAssessment(true)}
+            onBack={() => setActiveScreen('explorar')} 
+            onShowDialog={showDialog}
+          />
+        )}
+        {activeScreen === 'ajustes' && userProfile && <Settings profile={userProfile} onBack={() => setActiveScreen('inicio')} onShowDialog={showDialog} />}
+        {activeScreen === 'entrenador' && (
+          <TrainerDashboard 
+            onBack={() => setActiveScreen('inicio')} 
+            currentRole={userProfile?.role} 
+            currentUserUid={user?.uid} 
+            onShowDialog={showDialog} 
+          />
+        )}
+        {activeScreen === 'ranking' && <Leaderboard users={allUsers} currentUserUid={user?.uid} onBack={() => setActiveScreen('explorar')} />}
+        {activeScreen === 'info' && (
+          gymInfo ? (
+            <GymInfo info={gymInfo} userProfile={userProfile} onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />
+          ) : (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] px-8 text-center gap-6">
+              <div className="w-12 h-12 border-4 border-surface-container-high border-t-secondary rounded-full animate-spin" />
+              <p className="text-on-surface-variant text-sm font-bold animate-pulse">Sincronizando con la nube...</p>
+            </div>
+          )
+        )}
+        {activeScreen === 'rutinas' && <RoutineManager profile={userProfile} onBack={() => setActiveScreen('explorar')} onShowDialog={showDialog} />}
+      </div>
 
       {/* Progress Overlays (Modals for Editing) */}
       {isEditingAssessment && userProfile?.assessment && (
@@ -689,41 +772,54 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Dialog Component */}
-      <Dialog 
-        {...dialogConfig} 
-        onClose={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))} 
-      />
+        <AnimatePresence mode="wait">
+          {isEditingAssessment && userProfile?.assessment && (
+            <Assessment 
+              uid={user!.uid} 
+              userName={userProfile.displayName} 
+              initialData={userProfile.assessment}
+              onClose={() => setIsEditingAssessment(false)}
+              onComplete={() => setIsEditingAssessment(false)}
+              onShowDialog={showDialog}
+            />
+          )}
+        </AnimatePresence>
 
-      {/* Session Warning Dialog — dedicated component, NOT dismissible by mouse/scroll */}
-      <SessionWarningDialog
-        isOpen={sessionWarning.show}
-        totalSeconds={sessionWarning.totalSeconds}
-        secondsLeft={sessionWarning.secondsLeft}
-        onKeepSession={() => {
-          const now = Date.now();
-          const nextNonce = Math.random().toString(36).substring(7);
-          
-          // MASTER GENERATIVE RESET
-          localStorage.setItem('kinetic_last_activity', now.toString());
-          localStorage.setItem('kinetic_session_nonce', nextNonce);
-          
-          lastActivityRef.current = now; 
-          sessionNonceRef.current = nextNonce; // Any OLD logouts from PREVIOUS tickets will be ignored
-          
-          hasShownTimeoutWarningRef.current = false;
-          setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+        <AnimatePresence mode="wait">
+          {dialogConfig.isOpen && (
+            <Dialog 
+              {...dialogConfig} 
+              onClose={() => setDialogConfig(prev => ({ ...prev, isOpen: false }))} 
+            />
+          )}
+        </AnimatePresence>
 
-          // Force instant timer jump to full time
-          const timeoutMin = Number(gymInfoRef.current?.sessionTimeoutMinutes) || 30;
-          setDebugTimeLeft(`[NUEVO TICKET] ${timeoutMin}:00`);
-        }}
-        onLogout={() => {
-          hasShownTimeoutWarningRef.current = false;
-          setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
-          handleLogoutRef.current();
-        }}
-      />
+        <AnimatePresence mode="wait">
+          {sessionWarning.show && (
+            <SessionWarningDialog
+              isOpen={sessionWarning.show}
+              totalSeconds={sessionWarning.totalSeconds}
+              secondsLeft={sessionWarning.secondsLeft}
+              onKeepSession={() => {
+                const now = Date.now();
+                const nextNonce = Math.random().toString(36).substring(7);
+                localStorage.setItem('kinetic_last_activity', now.toString());
+                localStorage.setItem('kinetic_session_nonce', nextNonce);
+                lastActivityRef.current = now; 
+                sessionNonceRef.current = nextNonce;
+                hasShownTimeoutWarningRef.current = false;
+                setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+                const timeoutMin = Number(gymInfoRef.current?.sessionTimeoutMinutes) || 30;
+                setDebugTimeLeft(`[NUEVO TICKET] ${timeoutMin}:00`);
+              }}
+              onLogout={() => {
+                hasShownTimeoutWarningRef.current = false;
+                setSessionWarning({ show: false, totalSeconds: 0, secondsLeft: 0 });
+                handleLogoutRef.current();
+              }}
+            />
+          )}
+        </AnimatePresence>
     </Layout>
   );
 }

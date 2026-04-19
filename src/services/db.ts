@@ -110,7 +110,8 @@ export const saveProgressLog = async (uid: string, log: ProgressLog) => {
 // Listen to real-time changes
 export const listenToUserData = (
   uid: string,
-  onUpdate: (data: UserProfile | null) => void
+  onUpdate: (data: UserProfile | null) => void,
+  onError?: (error: any) => void
 ) => {
   const userRef = getUserRef(uid);
 
@@ -120,6 +121,8 @@ export const listenToUserData = (
     } else {
       onUpdate(null);
     }
+  }, (error) => {
+    if (onError) onError(error);
   });
 };
 
