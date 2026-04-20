@@ -43,6 +43,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [cursorStack, setCursorStack] = useState<any[]>([null]);
+  const [showRowsDropdown, setShowRowsDropdown] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
   const [globalStats, setGlobalStats] = useState({ total: 0, active: 0, expired: 0, pending: 0 });
 
@@ -774,57 +775,52 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-surface-container-low border border-outline-variant/10 rounded-2xl py-3 pl-12 pr-4 text-[10px] font-black uppercase tracking-widest text-white placeholder:text-outline-variant/40 focus:ring-1 focus:ring-secondary/30 transition-all outline-none"
               />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-surface-container-high rounded-lg transition-colors">
-                  <span className="material-symbols-outlined text-xs">close</span>
-                </button>
-              )}
             </div>
           </div>
           
           <div className="bg-surface-container-low rounded-[40px] border border-outline-variant/10 overflow-hidden shadow-2xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto kinetic-table-container">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-surface-container-high/50 border-b border-outline-variant/10">
-                    <th className="px-6 py-5">
+                    <th className="px-6 py-5 sticky-header">
                       <button 
                         onClick={() => handleSort('displayName')}
                         className="flex items-center gap-1.5 group outline-none"
                       >
-                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Cliente</span>
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors whitespace-nowrap">Cliente</span>
                         <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'displayName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
                           {sortConfig.field === 'displayName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
                         </span>
                       </button>
                     </th>
-                    <th className="px-6 py-5">
+                    <th className="px-6 py-5 w-[120px]">
                       <button 
                         onClick={() => handleSort('role')}
                         className="flex items-center gap-1.5 group outline-none"
                       >
-                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Rol</span>
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors whitespace-nowrap">Rol</span>
                         <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'role' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
                           {sortConfig.field === 'role' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
                         </span>
                       </button>
                     </th>
-                    <th className="px-6 py-5">
-                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em]">Estado</span>
+                    <th className="px-6 py-5 w-[140px]">
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">Estado</span>
                     </th>
-                    <th className="px-6 py-5 hidden md:table-cell">
+                    <th className="px-6 py-5 w-[140px] hidden md:table-cell">
                       <button 
                         onClick={() => handleSort('trainerName')}
                         className="flex items-center gap-1.5 group outline-none"
                       >
-                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors">Coach</span>
+                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors whitespace-nowrap">Coach</span>
                         <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'trainerName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
                           {sortConfig.field === 'trainerName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
                         </span>
                       </button>
                     </th>
-                    <th className="px-6 py-5 text-right">
-                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em]">Acciones</span>
+                    <th className="px-6 py-5 w-[100px] text-right">
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">Acciones</span>
                     </th>
                   </tr>
                 </thead>
@@ -840,7 +836,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                         onClick={() => { setSelectedTrainee(t); window.scrollTo(0, 0); }}
                         className="group hover:bg-white/5 transition-colors cursor-pointer"
                       >
-                        <td className="px-3 sm:px-6 py-4">
+                        <td className="px-3 sm:px-6 py-4 sticky-cell">
                           <div className="flex items-center gap-3 sm:gap-4">
                             <div className="relative shrink-0">
                               <img 
@@ -848,20 +844,20 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-outline-variant/10 group-hover:border-secondary/30 transition-colors shadow-lg" 
                               />
                             </div>
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-[120px] max-w-[180px] flex-1">
                               <p className="font-headline font-black text-xs sm:text-sm uppercase tracking-tight group-hover:text-secondary transition-colors truncate">{t.displayName || (t.email ? t.email.split('@')[0] : 'Usuario')}</p>
                               <p className="text-outline text-[7px] sm:text-[8px] font-bold uppercase tracking-widest truncate opacity-50 italic">{t.email}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 sm:px-6 py-4 hidden sm:table-cell">
-                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border ${getRoleColor(t.role || 'trainee')}`}>
+                        <td className="px-6 py-4 w-[140px]">
+                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${getRoleColor(t.role || 'trainee')}`}>
                             {t.role || 'trainee'}
                           </span>
                         </td>
-                        <td className="px-3 sm:px-6 py-4">
+                        <td className="px-6 py-4 w-[160px]">
                           <div className="flex flex-col gap-1">
-                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit ${status.color}`}>
+                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit shadow-lg shadow-black/20 ${status.color}`}>
                               {status.label}
                             </span>
                             {t.subscription && t.subscription.status === 'active' && (
@@ -871,7 +867,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 hidden md:table-cell text-xs">
+                        <td className="px-6 py-4 w-[140px] hidden md:table-cell text-xs">
                           {t.role === 'trainee' ? (
                             <div className={`flex items-center gap-2 ${t.trainerName ? 'text-secondary' : 'text-outline/40 italic'}`}>
                               <span className="material-symbols-outlined text-sm">{t.trainerName ? 'sports' : 'person_off'}</span>
@@ -881,7 +877,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                             <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">---</span>
                           )}
                         </td>
-                        <td className="px-3 sm:px-6 py-4 text-right">
+                        <td className="px-6 py-4 w-[100px] text-right">
                           <div className="flex items-center justify-end gap-1.5 sm:gap-2">
                             {activeTab === 'requests' && (
                               <>
@@ -920,60 +916,75 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
 
           {/* Premium Pagination */}
           {!isSearchingGlobal && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-6 py-8">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 px-6 py-8">
               <div className="flex items-center gap-6 order-2 sm:order-1">
-                {/* Rows Selector */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-surface-container-high/30 rounded-2xl border border-outline-variant/10">
-                  <span className="text-[9px] font-black text-outline uppercase tracking-widest whitespace-nowrap">Filas</span>
-                  <div className="flex items-center gap-1">
-                    {[5, 10, 20, 50].map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => handlePageSizeChange(size)}
-                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
-                          pageSize === size 
-                            ? 'bg-secondary text-background shadow-[0_0_10px_rgba(202,253,0,0.2)]' 
-                            : 'text-outline hover:text-white hover:bg-surface-container-high'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
+                {/* Rows Selector Dropdown */}
+                {/* Custom Rows Selector */}
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowRowsDropdown(!showRowsDropdown)}
+                    className="flex items-center justify-center gap-3 px-5 py-2.5 bg-surface-container-high/30 rounded-2xl border border-outline-variant/10 hover:border-secondary/30 transition-all group"
+                  >
+                    <span className="text-[9px] font-black text-outline uppercase tracking-widest whitespace-nowrap">Filas</span>
+                    <span className="text-[12px] font-black text-secondary">{pageSize}</span>
+                    <span className={`material-symbols-outlined text-secondary text-lg transition-transform duration-300 ${showRowsDropdown ? 'rotate-180' : ''}`}>expand_more</span>
+                  </button>
+
+                  <AnimatePresence>
+                    {showRowsDropdown && (
+                      <>
+                        {/* Backdrop to close */}
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setShowRowsDropdown(false)} 
+                        />
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute bottom-full mb-3 left-0 z-50 min-w-[100px] bg-surface-container-high border border-outline-variant/20 rounded-[24px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+                        >
+                          {[5, 10, 20, 50].map((size) => (
+                            <button
+                              key={size}
+                              onClick={() => {
+                                handlePageSizeChange(size);
+                                setShowRowsDropdown(false);
+                              }}
+                              className={`w-full px-5 py-3 text-left text-[11px] font-black uppercase tracking-widest transition-colors flex items-center justify-between group ${pageSize === size ? 'bg-secondary text-background' : 'text-outline hover:bg-white/5 hover:text-white'}`}
+                            >
+                              {size}
+                              {pageSize === size && <span className="material-symbols-outlined text-sm">check_circle</span>}
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <button 
-                    onClick={() => loadUsers(currentPage - 1)}
-                    disabled={currentPage === 1 || isLoading}
-                    className="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant/10 flex items-center justify-center text-outline hover:text-secondary hover:border-secondary/30 disabled:opacity-20 disabled:pointer-events-none transition-all"
-                  >
-                    <span className="material-symbols-outlined text-xl">chevron_left</span>
-                  </button>
-                  
-                  <div className="flex items-center gap-1.5 mx-2">
-                    {Array.from({ length: Math.max(currentPage, cursorStack.length) }, (_, i) => i + 1).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => loadUsers(pageNum)}
-                        className={`min-w-[40px] h-10 rounded-xl font-headline font-black italic text-[11px] transition-all border ${
-                          currentPage === pageNum 
-                            ? 'bg-secondary text-background border-secondary transform scale-110 shadow-[0_0_15px_rgba(202,253,0,0.3)]' 
-                            : 'bg-surface-container-low text-outline border-outline-variant/10 hover:border-secondary/40 hover:text-white'
-                        }`}
+                    {/* Pagination Controls */}
+                    <div className="flex items-center gap-1.5 ml-4 bg-surface-container-high/30 rounded-2xl p-1 px-3 border border-outline-variant/10">
+                      <span className="text-[10px] font-black text-outline uppercase tracking-widest italic mr-2 opacity-60">Pág</span>
+                      <button 
+                        onClick={() => loadUsers(currentPage - 1)}
+                        disabled={currentPage === 1 || isLoading}
+                        className="w-8 h-8 flex items-center justify-center text-outline hover:text-secondary disabled:opacity-20 transition-all font-headline font-black italic text-lg pr-1"
                       >
-                        {pageNum}
+                        &lt;
                       </button>
-                    ))}
-                    {hasMore && (
-                      <button
+                      <span className="text-[14px] font-headline font-black italic text-secondary w-8 h-8 flex items-center justify-center mx-1">
+                        {currentPage}
+                      </span>
+                      <button 
                         onClick={() => loadUsers(currentPage + 1)}
-                        className="min-w-[40px] h-10 rounded-xl bg-surface-container-low text-outline-variant/30 border border-outline-variant/10 font-headline font-black italic text-[11px] flex items-center justify-center gap-0.5 hover:text-white hover:border-secondary/40 transition-all"
+                        disabled={!hasMore || isLoading}
+                        className="w-8 h-8 flex items-center justify-center text-outline hover:text-secondary disabled:opacity-20 transition-all font-headline font-black italic text-lg pl-1"
                       >
-                        ...
+                        &gt;
                       </button>
-                    )}
-                  </div>
+                    </div>
 
                   <button 
                     onClick={() => loadUsers(currentPage + 1)}
@@ -992,9 +1003,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                     <span className="text-[9px] font-black text-outline uppercase tracking-widest animate-pulse">Cargando...</span>
                   </div>
                 )}
-                <div className="text-right">
+                <div className="flex flex-col items-center">
                   <p className="text-[9px] font-black text-outline uppercase tracking-widest leading-none">Página Actual</p>
-                  <p className="text-xl font-headline font-black italic text-secondary mt-1">{currentPage}</p>
+                  <p className="text-[20px] font-headline font-black italic text-secondary mt-1 leading-none">{currentPage}</p>
                 </div>
               </div>
             </div>
