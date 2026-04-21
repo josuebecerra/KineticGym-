@@ -7,10 +7,11 @@ export interface GymSchedule {
 }
 
 export interface MembershipPlan {
-  id: '1month' | '6months' | '1year';
+  id: string; // '1month' | '6months' | '1year' | 'staff_monthly' | etc
   name: string;
   price: string;
   description: string;
+  type?: 'standard' | 'staff'; // Para filtrar según el rol
 }
 
 export interface NewsItem {
@@ -41,11 +42,12 @@ export interface AssessmentData {
 }
 
 export interface SubscriptionData {
-  planId: '1month' | '6months' | '1year';
+  planId: string;
   startDate: string;
   endDate: string;
   status: 'active' | 'expired' | 'canceled';
   cancelReason?: string;
+  planType?: 'standard' | 'staff';
 }
 
 export interface TaxData {
@@ -112,7 +114,7 @@ export interface UserProfile {
   subscription?: SubscriptionData;
   subscriptionHistory?: SubscriptionData[];
   membershipRequest?: {
-    planId: '1month' | '6months' | '1year';
+    planId: string;
     requestDate: string;
     status: 'pending' | 'rejected';
   };

@@ -8,8 +8,11 @@ import {
   requestElectronicInvoice,
   getUsersPaginated,
   getStaffUsers,
+  getAllUsers,
   searchUsers,
-  getGlobalDashboardStats
+  getGlobalDashboardStats,
+  listenToUserData,
+  listenToAllUsers
 } from '../services/db';
 import { DialogConfig } from './Dialog';
 import { ROUTINES, getLevelColor, getTitleColor } from '../constants';
@@ -48,6 +51,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   const [globalStats, setGlobalStats] = useState({ total: 0, active: 0, expired: 0, pending: 0 });
 
   const [pageSize, setPageSize] = useState(5);
+  const [allUsersBatch, setAllUsersBatch] = useState<UserProfile[]>([]);
 
   // Unified effect for search, tab changes and initial load
   useEffect(() => {
@@ -71,7 +75,17 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
   useEffect(() => {
     refreshGlobalStats();
     loadStaff();
+    loadAllUsersForCounting();
   }, []);
+
+  const loadAllUsersForCounting = async () => {
+    try {
+      const users = await getAllUsers();
+      setAllUsersBatch(users);
+    } catch (error) {
+      console.error("Error loading users for counting:", error);
+    }
+  };
 
   const loadStaff = async () => {
     try {
@@ -171,12 +185,52 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     setCurrentPage(1);
   };
 
+  // Real-time listener for the main users list based on active tab
+  useEffect(() => {
+    if (selectedTrainee || isSearchingGlobal) return;
+
+    const unsubscribe = listenToAllUsers((updatedUsers) => {
+      // Filtrar según la pestaña activa
+      const filtered = updatedUsers.filter(u => {
+        if (activeTab === 'requests') return u.membershipRequest?.status === 'pending';
+        return u.role === activeTab;
+      });
+      // Nota: Aquí se pisa la paginación, pero garantiza tiempo real para staff. 
+      // Para escalas grandes se usaría un listener por documento o query con limit.
+      if (activeTab === 'trainer' || activeTab === 'admin') {
+        setTrainees(filtered);
+      }
+      setAllUsersBatch(updatedUsers);
+    });
+
+    return () => unsubscribe();
+  }, [selectedTrainee, activeTab, isSearchingGlobal]);
+
   // Trigger reload on sort change or page size change
   useEffect(() => {
     if (!selectedTrainee) {
       loadUsers(1, [null]);
     }
   }, [sortConfig, pageSize]);
+
+  // Real-time listener for selected trainee
+  useEffect(() => {
+    if (!selectedTrainee) return;
+
+    const unsubscribe = listenToUserData(
+      selectedTrainee.uid,
+      (updatedUser) => {
+        if (updatedUser) {
+          setSelectedTrainee(updatedUser);
+          // Also update the trainee in the main list to keep consistency
+          setTrainees(prev => prev.map(t => t.uid === updatedUser.uid ? updatedUser : t));
+        }
+      },
+      (error) => console.error("Error listening to selected user:", error)
+    );
+
+    return () => unsubscribe();
+  }, [selectedTrainee?.uid]);
 
   const handleAssign = async (routine: Routine) => {
     if (!selectedTrainee) return;
@@ -189,21 +243,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         trainerProfile.displayName || 'Entrenador'
       );
       
-      // Update local state to show author info immediately
-      const routineWithAuthor = {
-        ...routine,
-        authorId: currentUserUid,
-        authorName: trainerProfile.displayName || 'Entrenador'
-      };
-      
-      const updatedTrainee = { 
-        ...selectedTrainee, 
-        assignedRoutines: [...(selectedTrainee.assignedRoutines || []), routineWithAuthor] 
-      };
-      
-      setSelectedTrainee(updatedTrainee);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
-
+      // The real-time listener will update the local state automatically
       onShowDialog({
         type: 'success',
         title: 'RUTINA ASIGNADA',
@@ -227,10 +267,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       const { assignTrainerToUser } = await import('../services/db');
       await assignTrainerToUser(selectedTrainee.uid, trainer.uid, trainer.displayName || trainer.email || 'Entrenador');
       
-      // Update local state
-      setSelectedTrainee(prev => prev ? { ...prev, trainerId: trainer.uid, trainerName: trainer.displayName } : null);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? { ...t, trainerId: trainer.uid, trainerName: trainer.displayName } : t));
-      
+      // The real-time listener will handle the UI update
       setIsAssigningTrainer(false);
       onShowDialog({
         type: 'success',
@@ -255,9 +292,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       const { updateUserProfile } = await import('../services/db');
       await updateUserProfile(selectedTrainee.uid, { role: newRole });
       
-      setSelectedTrainee(prev => prev ? { ...prev, role: newRole } : null);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? { ...t, role: newRole } : t));
-      
+      // The real-time listener will handle the UI update
       onShowDialog({
         type: 'success',
         title: 'ROL ACTUALIZADO',
@@ -304,13 +339,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
     try {
       await updateUserSubscription(selectedTrainee.uid, subscription);
       
-      // Update local state (including history)
-      const updatedHistory = [...(selectedTrainee.subscriptionHistory || []), subscription];
-      const updatedTrainee = { ...selectedTrainee, subscription, subscriptionHistory: updatedHistory };
-      
-      setSelectedTrainee(updatedTrainee);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
-      
+      // The real-time listener will handle UI update
       onShowDialog({
         type: 'success',
         title: 'MEMBRESÍA ACTUALIZADA',
@@ -343,23 +372,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
         cancelReason: reason
       };
 
-      const updatedHistory = (selectedTrainee.subscriptionHistory || []).map(sub => {
-        if (sub.startDate === selectedTrainee.subscription?.startDate) {
-          return updatedSub;
-        }
-        return sub;
-      });
-
-      const updatedTrainee = { 
-        ...selectedTrainee, 
-        subscription: updatedSub,
-        subscriptionHistory: updatedHistory,
-        membershipRequest: null 
-      };
-      
-      setSelectedTrainee(updatedTrainee);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
-      
+      // The real-time listener will handle UI update
       onShowDialog({
         type: 'info',
         title: 'PLAN CANCELADO',
@@ -402,14 +415,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       const { approveMembership } = await import('../services/db');
       await approveMembership(user.uid, planId);
       
-      // Update local state with calculated values & history
-      setTrainees(prev => prev.map(t => t.uid === user.uid ? { 
-        ...t, 
-        subscription: newSubscription, 
-        subscriptionHistory: [...(t.subscriptionHistory || []), newSubscription],
-        membershipRequest: null 
-      } : t));
-      
+      // The real-time listener will handle UI update automatically
       onShowDialog({
         type: 'success',
         title: 'MEMBRESÍA ACTIVADA',
@@ -446,10 +452,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       const updatedRoutines = (selectedTrainee.assignedRoutines || []).filter((r, idx) => `${r.id}-${idx}` !== routineId && r.id !== routineId);
       await updateUserProfile(selectedTrainee.uid, { assignedRoutines: updatedRoutines });
       
-      const updatedTrainee = { ...selectedTrainee, assignedRoutines: updatedRoutines };
-      setSelectedTrainee(updatedTrainee);
-      setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
-      
+      // The real-time listener will handle UI update
       onShowDialog({
         type: 'info',
         title: 'RUTINA ELIMINADA',
@@ -475,10 +478,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           const { updateUserProfile } = await import('../services/db');
           await updateUserProfile(selectedTrainee.uid, { assignedRoutines: [] });
           
-          const updatedTrainee = { ...selectedTrainee, assignedRoutines: [] };
-          setSelectedTrainee(updatedTrainee);
-          setTrainees(prev => prev.map(t => t.uid === selectedTrainee.uid ? updatedTrainee : t));
-          
+          // The real-time listener will handle UI update
           onShowDialog({
             type: 'success',
             title: 'LIMPIEZA COMPLETA',
@@ -534,9 +534,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
       const { rejectMembership } = await import('../services/db');
       await rejectMembership(user.uid);
       
-      // Update local state
-      setTrainees(prev => prev.map(t => t.uid === user.uid ? { ...t, membershipRequest: { ...t.membershipRequest!, status: 'rejected' } } : t));
-      
+      // The real-time listener will handle UI update
       onShowDialog({
         type: 'info',
         title: 'SOLICITUD RECHAZADA',
@@ -806,11 +804,13 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                       </button>
                     </th>
                     <th className="px-6 py-5 w-[140px]">
-                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">Estado</span>
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">
+                        {activeTab === 'trainer' ? 'Equipo a Cargo' : 'Estado'}
+                      </span>
                     </th>
                     <th className="px-6 py-5 w-[140px] hidden md:table-cell">
                       <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">
-                        {activeTab === 'trainer' ? 'Jefe / Supervisor' : 'Coach'}
+                        {activeTab === 'admin' ? 'Equipo a Cargo' : (activeTab === 'trainee' ? 'Coach' : 'Jefe / Supervisor')}
                       </span>
                     </th>
                     <th className="px-6 py-5 w-[100px] text-right">
@@ -864,31 +864,75 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                           </div>
                         </td>
                         <td className="px-6 py-4 w-[160px]">
-                          <div className="flex flex-col gap-1">
-                            <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit shadow-lg shadow-black/20 ${status.color}`}>
-                              {status.label}
-                            </span>
-                            {t.subscription && t.subscription.status === 'active' && (
-                              <span className="text-[8px] font-bold text-outline uppercase tracking-widest opacity-40">
-                                Vence: {new Date(t.subscription.endDate).toLocaleDateString()}
+                          {activeTab === 'trainer' ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex -space-x-2 overflow-hidden">
+                                {allUsersBatch
+                                  .filter(u => u.trainerId === t.uid)
+                                  .slice(0, 3)
+                                  .map((u, i) => (
+                                    <img 
+                                      key={i}
+                                      className="inline-block h-6 w-6 rounded-full ring-2 ring-surface-container-low border border-outline-variant/10"
+                                      src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.displayName}&background=${u.role === 'trainer' ? 'FFB74D' : 'CCFF00'}&color=121212`}
+                                      alt={u.displayName}
+                                    />
+                                  ))
+                                }
+                                {allUsersBatch.filter(u => u.trainerId === t.uid).length > 3 && (
+                                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-surface-container-high ring-2 ring-surface-container-low text-[8px] font-black text-secondary border border-outline-variant/10">
+                                    +{allUsersBatch.filter(u => u.trainerId === t.uid).length - 3}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-black text-secondary uppercase tracking-widest">
+                                {allUsersBatch.filter(u => u.trainerId === t.uid).length} Miembros
                               </span>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-flex px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest w-fit shadow-lg shadow-black/20 ${t.role === 'admin' ? (t.isActive !== false ? 'bg-secondary/10 text-secondary border-secondary/20' : 'bg-error/10 text-error border-error/20') : status.color}`}>
+                                {t.role === 'admin' ? (t.isActive !== false ? 'ACTIVO' : 'DESACTIVADO') : status.label}
+                              </span>
+                              {t.role === 'trainee' && t.subscription && t.subscription.status === 'active' && (
+                                <span className="text-[8px] font-bold text-outline uppercase tracking-widest opacity-40">
+                                  Vence: {new Date(t.subscription.endDate).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 w-[140px] hidden md:table-cell text-xs">
-                          {t.role === 'trainee' ? (
+                          {activeTab === 'admin' ? (
+                             <div className="flex items-center gap-2">
+                                <div className="flex -space-x-1 overflow-hidden">
+                                  {allUsersBatch
+                                    .filter(u => u.bossId === t.uid)
+                                    .slice(0, 2)
+                                    .map((u, i) => (
+                                      <img 
+                                        key={i}
+                                        className="h-5 w-5 rounded-full ring-1 ring-surface-container-low"
+                                        src={u.avatarUrl || `https://ui-avatars.com/api/?name=${u.displayName}&background=CCFF00&color=121212`}
+                                      />
+                                    ))
+                                  }
+                                </div>
+                                <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">
+                                   {allUsersBatch.filter(u => u.bossId === t.uid).length} Miembros
+                                </span>
+                             </div>
+                          ) : activeTab === 'trainee' ? (
                             <div className={`flex items-center gap-2 ${t.trainerName ? 'text-secondary' : 'text-outline/40 italic'}`}>
                               <span className="material-symbols-outlined text-sm">{t.trainerName ? 'sports' : 'person_off'}</span>
                               <span className="text-[9px] font-black uppercase tracking-wider">{t.trainerName || 'Sin asignar'}</span>
                             </div>
-                          ) : t.role === 'trainer' ? (
+                          ) : activeTab === 'trainer' ? (
                             <div className={`flex items-center gap-2 ${t.bossName ? 'text-amber-400' : 'text-outline/40 italic'}`}>
                               <span className="material-symbols-outlined text-sm">{t.bossName ? 'security' : 'sentiment_dissatisfied'}</span>
                               <span className="text-[9px] font-black uppercase tracking-wider">{t.bossName || 'Sin Jefe'}</span>
                             </div>
-                          ) : (
-                            <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">Master Admin</span>
-                          )}
+                          ) : null}
                         </td>
                         <td className="px-6 py-4 w-[100px] text-right">
                           <div className="flex items-center justify-end gap-1.5 sm:gap-2">
@@ -1031,6 +1075,7 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
           currentRole={currentRole}
           currentUserUid={currentUserUid}
           allStaff={allStaff}
+          allUsers={allUsersBatch}
           ROUTINES={ROUTINES}
           onBack={() => {
             setSelectedTrainee(null);

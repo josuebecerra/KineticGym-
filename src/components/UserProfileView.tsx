@@ -7,11 +7,12 @@ interface UserProfileViewProps {
   currentRole: string | undefined;
   currentUserUid: string | undefined;
   allStaff: UserProfile[];
+  allUsers: UserProfile[];
   ROUTINES: Routine[];
   onBack: () => void;
   onShowDialog: (config: any) => void;
   handleRoleChange: (newRole: 'admin' | 'trainer' | 'trainee') => void;
-  handleSubscriptionUpdate: (planId: '1month' | '6months' | '1year') => void;
+  handleSubscriptionUpdate: (planId: string) => void;
   handleCancelSubscription: (reason: string) => void;
   handleRemoveRoutine: (routineId: string) => void;
   handleClearAllRoutines: () => void;
@@ -30,6 +31,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   currentRole,
   currentUserUid,
   allStaff,
+  allUsers,
   ROUTINES,
   onBack,
   onShowDialog,
@@ -47,15 +49,18 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   showHistory,
   setShowHistory
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'training' | 'membership' | 'admin'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'training' | 'membership' | 'admin' | 'clients'>('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('TODOS');
 
   const ROUTINE_CATEGORIES = ['TODOS', 'FULL BODY', 'EMPUJE', 'TRACCIÓN', 'PIERNAS', 'TORSO', 'BRAZOS', 'CORE', 'GLÚTEOS'];
 
   const now = new Date();
-  const subStatus = user.subscription?.status === 'active' && new Date(user.subscription.endDate) > now ? 'ACTIVO' : 'INACTIVO';
-  const subColor = subStatus === 'ACTIVO' ? 'text-secondary border-secondary/30 bg-secondary/10' : 'text-error border-error/30 bg-error/10';
+  const isStaff = user.role === 'admin' || user.role === 'trainer';
+  const subStatus = isStaff 
+    ? (user.isActive !== false ? 'ACTIVO' : 'DESACTIVADO')
+    : (user.subscription?.status === 'active' && new Date(user.subscription.endDate) > now ? 'ACTIVO' : 'INACTIVO');
+  const subColor = (subStatus === 'ACTIVO' || subStatus === 'STAFF') ? 'text-secondary border-secondary/30 bg-secondary/10' : 'text-error border-error/30 bg-error/10';
 
   // Calculate some stats
   const totalWorkouts = user.history?.length || 0;
@@ -70,7 +75,9 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   const tabs = [
     { id: 'overview', label: 'Resumen', icon: 'grid_view' },
     { id: 'training', label: 'Entrenamiento', icon: 'fitness_center' },
-    { id: 'membership', label: 'Membresía', icon: 'payments' },
+    ...(!isStaff ? [{ id: 'membership', label: 'Membresía', icon: 'payments' }] : []),
+    ...((user.role === 'trainer') ? [{ id: 'clients', label: 'Alumnos', icon: 'group' }] : []),
+    ...(user.role === 'admin' ? [{ id: 'clients', label: 'Equipo', icon: 'diversity_3' }] : []),
     ...(currentRole === 'admin' ? [{ id: 'admin', label: 'Admin', icon: 'shield_person' }] : [])
   ];
 
@@ -119,15 +126,20 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
 
             <div className="flex-1 text-center md:text-left min-w-0">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-3">
-                <span className="px-3 py-1 bg-surface-container-highest border border-outline-variant/10 rounded-full text-[9px] font-black uppercase tracking-widest text-outline">
+                <span className="px-3 py-1 bg-surface-container-highest border border-outline-variant/10 rounded-full text-[9px] font-black uppercase tracking-widest text-outline h-[26px] flex items-center">
                   {user.role || 'TRAINEE'}
                 </span>
-                <span className={`px-3 py-1 border rounded-full text-[9px] font-black uppercase tracking-widest ${subColor}`}>
+                <span className={`px-3 py-1 border rounded-full text-[9px] font-black uppercase tracking-widest ${subColor} h-[26px] flex items-center`}>
                   {subStatus}
                 </span>
-                {user.trainerName && (
-                  <span className="px-3 py-1 bg-primary-container/10 border border-primary-container/20 rounded-full text-[9px] font-black uppercase tracking-widest text-primary-container flex items-center gap-1.5">
+                {user.trainerName && user.role === 'trainee' && (
+                  <span className="px-3 py-1 bg-primary-container/10 border border-primary-container/20 rounded-full text-[9px] font-black uppercase tracking-widest text-primary-container flex items-center gap-1.5 h-[26px]">
                     <span className="material-symbols-outlined text-[14px]">school</span> {user.trainerName}
+                  </span>
+                )}
+                {user.bossName && user.role === 'trainer' && (
+                  <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5 h-[26px]">
+                    <span className="material-symbols-outlined text-[14px]">security</span> {user.bossName}
                   </span>
                 )}
               </div>
@@ -579,7 +591,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       {user.subscriptionHistory.slice().reverse().map((sub, i) => (
                         <div key={i} className="flex items-center justify-between p-4 bg-surface-container-high rounded-2xl border border-outline-variant/5 group hover:border-outline-variant/20 transition-all">
                           <div className="flex flex-col">
-                            <span className="text-[11px] font-black italic uppercase text-white">{sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}</span>
+                            <span className="text-[11px] font-black italic uppercase text-white">{sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : sub.planId === '1year' ? 'Anual' : 'Staff'}</span>
                             <span className="text-[8px] font-bold text-outline uppercase tracking-widest">{new Date(sub.startDate).toLocaleDateString()} al {new Date(sub.endDate).toLocaleDateString()}</span>
                           </div>
                           <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${sub.status === 'active' ? 'border-primary-container/20 text-primary-container bg-primary-container/5' : 'border-outline-variant/20 text-outline-variant bg-outline-variant/5'}`}>
@@ -605,16 +617,43 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                     </p>
                   </div>
                 )}
+
                 <div>
                   <h5 className="text-[11px] font-black text-outline uppercase tracking-[0.4em] italic mb-2 leading-none">Gestión de Pago</h5>
                   <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest italic leading-none opacity-50">Renovaciones rápidas</p>
                 </div>
 
                 <div className="space-y-3">
-                  {[
+                  {(allStaff.find(s => s.uid === 'gym_info_dummy')?.membershipPlans || [])
+                    .filter(plan => {
+                      if (user.role === 'trainer' || user.role === 'admin') {
+                        return plan.type === 'staff';
+                      }
+                      return plan.type === 'standard' || !plan.type;
+                    })
+                    .map(plan => (
+                    <button
+                      key={plan.id}
+                      onClick={() => handleSubscriptionUpdate(plan.id as any)}
+                      className="w-full p-4 rounded-3xl bg-surface-container-high border border-outline-variant/5 hover:border-secondary/30 hover:bg-surface-container-highest transition-all group flex items-center justify-between text-left"
+                    >
+                      <div className="flex flex-col">
+                        <span className={`text-base font-black italic uppercase leading-none mb-1 text-white group-hover:text-secondary`}>{plan.name}</span>
+                        <span className="text-[8px] font-black text-outline uppercase tracking-widest opacity-40">{plan.description}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-black italic text-secondary">${plan.price}</span>
+                        <span className="material-symbols-outlined text-outline group-hover:text-secondary translate-x-1 group-hover:translate-x-2 transition-transform">add_circle</span>
+                      </div>
+                    </button>
+                  ))}
+                  {/* Fallback en caso de que no haya planes cargados dinámicamente aún */}
+                  {(!allStaff.find(s => s.uid === 'gym_info_dummy')?.membershipPlans) && [
                     { id: '1month', label: 'Plan 1 Mes', price: '$40', color: 'text-secondary' },
-                    { id: '6months', label: 'Plan 6 Meses', price: '$200', color: 'text-primary-container' },
-                    { id: '1year', label: 'Plan 1 Año', price: '$350', color: 'text-amber-400' }
+                    ...(user.role === 'trainee' ? [
+                      { id: '6months', label: 'Plan 6 Meses', price: '$200', color: 'text-primary-container' },
+                      { id: '1year', label: 'Plan 1 Año', price: '$350', color: 'text-amber-400' }
+                    ] : [])
                   ].map(plan => (
                     <button
                       key={plan.id}
@@ -622,10 +661,13 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                       className="w-full p-4 rounded-3xl bg-surface-container-high border border-outline-variant/5 hover:border-secondary/30 hover:bg-surface-container-highest transition-all group flex items-center justify-between text-left"
                     >
                       <div className="flex flex-col">
-                        <span className={`text-base font-black italic uppercase leading-none mb-1 text-white group-hover:${plan.color}`}>{plan.label}</span>
+                        <span className={`text-base font-black italic uppercase leading-none mb-1 text-white group-hover:text-secondary`}>{plan.label}</span>
                         <span className="text-[8px] font-black text-outline uppercase tracking-widest opacity-40">Pago Contado / Tarjeta</span>
                       </div>
-                      <span className="material-symbols-outlined text-outline group-hover:text-secondary translate-x-1 group-hover:translate-x-2 transition-transform">add_circle</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-black italic text-secondary">{plan.price}</span>
+                        <span className="material-symbols-outlined text-outline group-hover:text-secondary translate-x-1 group-hover:translate-x-2 transition-transform">add_circle</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -653,7 +695,11 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                     <p className="text-sm font-black text-white italic uppercase leading-none">Permisos del Sistema</p>
                   </div>
                   
-                  <div className="flex flex-col gap-3">
+                   <div className="flex flex-col gap-3">
+                     {[
+                       { id: 'admin', label: 'Administrador Total', desc: 'Acceso a facturación y ajustes globales.' },
+                       { id: 'trainer', label: 'Staff / Entrenador', desc: 'Gestión de rutinas y alumnos.' },
+                       { id: 'trainee', label: 'Atleta / Cliente', desc: 'Acceso estándar a la aplicación.' }
                      ].map(role => (
                        <button
                          key={role.id}
@@ -680,12 +726,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                         const newStatus = user.isActive === false;
                         const { toggleUserStatus } = await import('../services/db');
                         await toggleUserStatus(user.uid, newStatus);
-                        onShowDialog({
-                          type: 'info',
-                          title: newStatus ? 'USUARIO HABILITADO' : 'USUARIO DESHABILITADO',
-                          message: `El acceso de ${user.displayName} al sistema ha sido ${newStatus ? 'reestablecido' : 'suspendido'} correctamente.`,
-                          confirmText: 'ENTENDIDO'
-                        });
+                        // The real-time listener in the parent will update the UI automatically
                       }}
                       className={`w-full p-5 rounded-3xl border-2 transition-all flex items-center justify-between group ${
                         user.isActive === false 
@@ -723,12 +764,7 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                               onClick={async () => {
                                 const { assignBossToStaff } = await import('../services/db');
                                 await assignBossToStaff(user.uid, admin.uid, admin.displayName || admin.email);
-                                onShowDialog({
-                                  type: 'success',
-                                  title: 'JERARQUÍA ACTUALIZADA',
-                                  message: `${admin.displayName} ha sido asignado como el jefe administrativo de ${user.displayName}.`,
-                                  confirmText: 'ENTENDIDO'
-                                });
+                                // The real-time listener in the parent will update the UI automatically
                               }}
                               className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${
                                 user.bossId === admin.uid 
@@ -814,6 +850,104 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 >
                   <span className="material-symbols-outlined text-lg">delete_forever</span> Reiniciar Datos Biométricos
                 </button>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'clients' && (
+            <motion.div 
+              key="clients"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <h5 className="text-[11px] font-black text-secondary uppercase tracking-[0.4em] italic mb-3 leading-none">
+                      {user.role === 'admin' ? 'Personal y Clientes' : 'Alumnos a Cargo'}
+                    </h5>
+                    <p className="text-sm font-black text-white italic uppercase leading-none">
+                      {user.role === 'admin' ? 'Equipo bajo supervisión' : 'Gestión de Atletas Asignados'}
+                    </p>
+                  </div>
+                  
+                  <div className="relative w-full md:w-64">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg">search</span>
+                    <input 
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Buscar por nombre..."
+                      className="w-full bg-surface-container-high border border-outline-variant/10 rounded-xl py-2.5 pl-10 pr-4 text-[10px] font-black uppercase tracking-widest placeholder:opacity-30 focus:border-secondary outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {allUsers
+                    .filter(u => {
+                      // Filtrado base por supervisor
+                      const isAssigned = user.role === 'admin' ? u.bossId === user.uid : u.trainerId === user.uid;
+                      const matchesSearch = (u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                          u.email?.toLowerCase().includes(searchTerm.toLowerCase()));
+                      return isAssigned && matchesSearch;
+                    })
+                    .map((client, idx) => {
+                      const isActive = client.subscription?.status === 'active' && new Date(client.subscription.endDate) > now;
+                      return (
+                        <motion.div 
+                          key={client.uid}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="bg-surface-container-high/40 rounded-3xl p-5 border border-outline-variant/10 group hover:border-secondary/30 transition-all flex items-center gap-4"
+                        >
+                          <div className="relative">
+                            <img 
+                              src={client.avatarUrl || `https://ui-avatars.com/api/?name=${client.displayName || 'Usuario'}&background=${client.role === 'trainer' ? 'FFB74D' : (isActive ? 'CCFF00' : 'FF4444')}&color=121212&bold=true`} 
+                              className="w-12 h-12 rounded-2xl border border-outline-variant/10 object-cover" 
+                            />
+                            {client.role === 'trainer' && (
+                              <div className="absolute -top-1 -right-1 bg-amber-400 text-black rounded-lg p-0.5 shadow-lg border border-surface-container-low">
+                                <span className="material-symbols-outlined text-[10px] font-black">sports</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-[11px] font-black uppercase italic truncate text-white group-hover:text-secondary transition-colors leading-none">
+                                {client.displayName || client.email.split('@')[0]}
+                              </p>
+                              {client.role === 'trainer' && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-amber-400/10 border border-amber-400/20 text-amber-400 text-[6px] font-black uppercase tracking-tighter">COACH</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${client.role === 'trainer' ? 'bg-amber-400' : (isActive ? 'bg-secondary' : 'bg-error')}`} />
+                              <span className="text-[8px] font-black text-outline uppercase tracking-widest opacity-60">
+                                {client.role === 'trainer' ? 'Entrenador' : (isActive ? 'Activo' : 'Vencido')}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-outline/20 group-hover:text-secondary transition-colors">chevron_right</span>
+                        </motion.div>
+                      );
+                    })}
+
+                  {allUsers.filter(u => user.role === 'admin' ? u.bossId === user.uid : u.trainerId === user.uid).length === 0 && (
+                    <div className="col-span-full py-20 text-center space-y-4 bg-surface-container-high/20 rounded-[32px] border-2 border-dashed border-outline-variant/10">
+                      <span className="material-symbols-outlined text-4xl text-outline/20 italic animate-pulse">
+                        {user.role === 'admin' ? 'diversity_3' : 'person_off'}
+                      </span>
+                      <p className="text-[10px] text-outline/30 italic uppercase tracking-[0.3em]">
+                        {user.role === 'admin' ? 'No hay equipo asignado a esta cuenta' : 'No hay alumnos vinculados a este coach'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}

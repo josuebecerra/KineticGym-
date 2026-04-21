@@ -150,9 +150,10 @@ export const listenToGymInfo = (onUpdate: (info: GymInfo) => void) => {
       }
     ],
     membershipPlans: [
-      { id: '1month', name: 'Mensual', price: '40', description: 'Acceso total por 30 días' },
-      { id: '6months', name: 'Semestral', price: '200', description: '¡Ahorra 15%! Acceso por 180 días' },
-      { id: '1year', name: 'Anual', price: '350', description: '¡Mejor Valor! Acceso ilimitado por 365 días' }
+      { id: '1month', name: 'Mensual Standard', price: '40', description: 'Acceso total por 30 días', type: 'standard' },
+      { id: '6months', name: 'Semestral Standard', price: '200', description: '¡Ahorra 15%! Acceso por 180 días', type: 'standard' },
+      { id: '1year', name: 'Anual Standard', price: '350', description: '¡Mejor Valor! Acceso ilimitado por 365 días', type: 'standard' },
+      { id: 'staff_monthly', name: 'Membresía Staff', price: '20', description: 'Plan preferencial para entrenadores activos', type: 'staff' }
     ]
   };
 
@@ -404,7 +405,7 @@ export const updateUserSubscription = async (uid: string, data: SubscriptionData
 };
 
 // Request a membership plan (Trainee)
-export const requestMembership = async (uid: string, planId: '1month' | '6months' | '1year') => {
+export const requestMembership = async (uid: string, planId: string) => {
   const userRef = getUserRef(uid);
   await updateDoc(userRef, {
     membershipRequest: {
@@ -416,7 +417,7 @@ export const requestMembership = async (uid: string, planId: '1month' | '6months
 };
 
 // Approve a pending membership (Admin)
-export const approveMembership = async (uid: string, planId: '1month' | '6months' | '1year') => {
+export const approveMembership = async (uid: string, planId: string) => {
   const userRef = getUserRef(uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) return;
@@ -437,12 +438,15 @@ export const approveMembership = async (uid: string, planId: '1month' | '6months
   if (planId === '1month') endDate.setMonth(endDate.getMonth() + 1);
   else if (planId === '6months') endDate.setMonth(endDate.getMonth() + 6);
   else if (planId === '1year') endDate.setFullYear(endDate.getFullYear() + 1);
+  else if (planId === 'staff_monthly') endDate.setMonth(endDate.getMonth() + 1); // Staff plan also monthly
+  else endDate.setMonth(endDate.getMonth() + 1); // Default 1 month
 
   const subscription: SubscriptionData = {
     planId,
     startDate: startDate.toISOString(),
     endDate: endDate.toISOString(),
-    status: 'active'
+    status: 'active',
+    planType: (planId === 'staff_monthly') ? 'staff' : 'standard'
   };
 
   await updateDoc(userRef, {
@@ -461,7 +465,7 @@ export const approveMembership = async (uid: string, planId: '1month' | '6months
 };
 
 // HELPER: Auto-invoicing logic
-const triggerAutoInvoice = async (uid: string, userData: UserProfile, planId: '1month' | '6months' | '1year') => {
+const triggerAutoInvoice = async (uid: string, userData: UserProfile, planId: string) => {
   try {
     const configRef = doc(db, 'gym_configs', 'invoicing');
     const configSnap = await getDoc(configRef);
@@ -472,7 +476,12 @@ const triggerAutoInvoice = async (uid: string, userData: UserProfile, planId: '1
       const consecutivo = generateConsecutivo(lastNum);
       const clave = generateClave(gymConfig, consecutivo);
 
-      const prices: Record<string, number> = { '1month': 40, '6months': 200, '1year': 350 };
+      const prices: Record<string, number> = { 
+        '1month': 40, 
+        '6months': 200, 
+        '1year': 350,
+        'staff_monthly': 20
+      };
       const amount = prices[planId] || 0;
       const totals = calculateInvoiceTotals(amount);
 
@@ -747,8 +756,10 @@ export const toggleUserStatus = async (uid: string, isActive: boolean) => {
   });
 };
 
-// Placeholder for missing triggerAutoInvoice if it's called elsewhere but not defined here
-// (Added based on existing code calls in bulkGenerateInvoices)
-async function triggerAutoInvoice(userId: string, userData: UserProfile, planId: any) {
-  // implementation logic
-}
+export const listenToAllUsers = (onUpdate: (users: UserProfile[]) => void) => {
+  const usersRef = collection(db, 'users');
+  return onSnapshot(usersRef, (snap) => {
+    onUpdate(snap.docs.map(doc => doc.data() as UserProfile));
+  });
+};
+
