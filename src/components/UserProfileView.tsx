@@ -48,6 +48,10 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
   setShowHistory
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'training' | 'membership' | 'admin'>('overview');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('TODOS');
+
+  const ROUTINE_CATEGORIES = ['TODOS', 'FULL BODY', 'EMPUJE', 'TRACCIÓN', 'PIERNAS', 'TORSO', 'BRAZOS', 'CORE', 'GLÚTEOS'];
 
   const now = new Date();
   const subStatus = user.subscription?.status === 'active' && new Date(user.subscription.endDate) > now ? 'ACTIVO' : 'INACTIVO';
@@ -295,12 +299,21 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   {user.assignedRoutines?.map((routine: any, idx: number) => (
                     <div key={idx} className="flex items-center justify-between p-4 bg-surface-container-high rounded-2xl border border-outline-variant/10 group">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-primary-container/10 flex items-center justify-center text-primary-container">
+                        <div className="w-10 h-10 rounded-xl bg-surface-container-highest flex items-center justify-center text-outline group-hover:text-secondary transition-colors shadow-lg shadow-black/10">
                           <span className="material-symbols-outlined">fitness_center</span>
                         </div>
                         <div>
-                          <p className="text-sm font-black uppercase italic text-white group-hover:text-primary-container transition-colors">{routine.name}</p>
-                          <p className="text-[9px] font-bold text-outline uppercase tracking-widest">{routine.category} • {routine.level}</p>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-sm font-black uppercase italic text-white group-hover:text-secondary transition-colors">
+                              {routine.name}
+                            </p>
+                            <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
+                              {routine.level}
+                            </span>
+                          </div>
+                          <p className="text-[9px] font-bold text-outline uppercase tracking-widest opacity-60">
+                            {routine.category} • {routine.exercisesCount || 0} EJERCICIOS
+                          </p>
                         </div>
                       </div>
                       {(currentRole === 'admin' || (currentRole === 'trainer' && user.trainerId === currentUserUid)) && (
@@ -355,44 +368,112 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                 </div>
               </div>
 
-              {/* Routine Assignment Catalog Section (INSIDE THE TAB) */}
+              {/* Routine Assignment Catalog Section (REFACTORED TO LIST & SEARCH) */}
               {(currentRole === 'admin' || (currentRole === 'trainer' && user.trainerId === currentUserUid)) ? (
                 <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 space-y-6">
-                  <div className="flex flex-col">
-                    <h5 className="text-[11px] font-black text-primary-container uppercase tracking-[0.4em] italic">Catálogo de Entrenamiento</h5>
-                    <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest mt-1 opacity-50 italic">Expande el programa del alumno</p>
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                    <div>
+                      <h5 className="text-[11px] font-black text-secondary uppercase tracking-[0.4em] italic">Catálogo de Entrenamiento</h5>
+                      <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest mt-1 opacity-50 italic">Expande el programa del alumno</p>
+                    </div>
+                    
+                    {/* Compact Search Bar */}
+                    <div className="relative w-full sm:w-64">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-lg">search</span>
+                      <input 
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar rutina..."
+                        className="w-full bg-surface-container-high border border-outline-variant/10 rounded-xl py-2.5 pl-10 pr-4 text-[10px] font-black uppercase tracking-widest placeholder:opacity-30 focus:border-secondary outline-none transition-all shadow-inner"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category Filter Pills */}
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 px-1">
+                    {ROUTINE_CATEGORIES.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`shrink-0 px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-tighter transition-all border ${
+                          selectedCategory === cat 
+                            ? 'bg-secondary text-black border-secondary' 
+                            : 'bg-surface-container-high text-outline border-outline-variant/10 hover:border-outline'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {ROUTINES.map(routine => (
-                      <div key={routine.id} className="bg-surface-container-high rounded-3xl p-6 border border-outline-variant/10 group hover:border-primary-container/30 transition-all shadow-sm flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
-                              {routine.level}
-                            </span>
-                          </div>
-                          <h3 className={`font-headline text-xl font-black uppercase tracking-tight italic leading-none mb-3 ${getTitleColor(routine.level)} group-hover:text-primary-container transition-colors`}>
-                            {routine.name}
-                          </h3>
-                          <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest leading-relaxed line-clamp-2 opacity-60 mb-6">{routine.description}</p>
-                        </div>
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                    {ROUTINES
+                      .filter(r => {
+                        const isAlreadyAssigned = user.assignedRoutines?.some(ar => ar.id === r.id);
+                        if (isAlreadyAssigned) return false;
+
+                        const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                          r.category.toLowerCase().includes(searchTerm.toLowerCase());
+                        const matchesCategory = selectedCategory === 'TODOS' || r.category === selectedCategory;
                         
-                        <div className="flex items-center justify-between pt-4 border-t border-outline-variant/5">
-                           <div className="flex items-center gap-3 text-outline text-[8px] font-black uppercase tracking-widest">
-                            <span className="flex items-center gap-1">
-                              <span className="material-symbols-outlined text-xs opacity-50">fitness_center</span> {routine.exercisesCount}
-                            </span>
+                        return matchesSearch && matchesCategory;
+                      })
+                      .map((routine, rIdx) => (
+                        <motion.div 
+                          key={routine.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: rIdx * 0.03 }}
+                          className="bg-surface-container-high/40 rounded-3xl p-4 border border-outline-variant/10 group hover:border-secondary/30 transition-all flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-surface-container-highest flex items-center justify-center text-outline group-hover:text-secondary transition-colors shadow-lg shadow-black/10">
+                              <span className="material-symbols-outlined text-2xl">fitness_center</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-sm font-black uppercase italic tracking-tight text-white group-hover:text-secondary transition-colors">
+                                  {routine.name}
+                                </h3>
+                                <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase tracking-tighter ${getLevelColor(routine.level)}`}>
+                                  {routine.level}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[8px] font-black text-outline uppercase tracking-widest opacity-60">
+                                  {routine.category} • {routine.exercisesCount} EJERCICIOS
+                                </span>
+                              </div>
+                            </div>
                           </div>
+                          
                           <button 
-                            onClick={() => handleAssign(routine)}
-                            className="bg-primary-container text-on-primary-container text-[8px] uppercase tracking-widest font-black px-4 py-2.5 rounded-xl hover:scale-105 active:scale-[0.98] transition-all shadow-lg shadow-primary-container/10 border border-primary-container/20"
+                            onClick={() => {
+                              handleAssign(routine);
+                              setSearchTerm(''); // Clear search on assign
+                            }}
+                            className="bg-secondary/10 text-secondary text-[8px] uppercase tracking-widest font-black px-4 py-2.5 rounded-xl hover:bg-secondary hover:text-black active:scale-95 transition-all shadow-lg shadow-black/10 border border-secondary/20"
                           >
-                            ASIGNAR AHORA
+                            ASIGNAR
                           </button>
-                        </div>
+                        </motion.div>
+                      ))}
+                      
+                    {/* Empty State for Search */}
+                    {ROUTINES.filter(r => {
+                      const isAlreadyAssigned = user.assignedRoutines?.some(ar => ar.id === r.id);
+                      if (isAlreadyAssigned) return false;
+                      const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                        r.category.toLowerCase().includes(searchTerm.toLowerCase());
+                      const matchesCategory = selectedCategory === 'TODOS' || r.category === selectedCategory;
+                      return matchesSearch && matchesCategory;
+                    }).length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-outline-variant/10 rounded-[32px]">
+                        <span className="material-symbols-outlined text-4xl text-outline/20 mb-3 italic">inventory_2</span>
+                        <p className="text-[10px] font-black text-outline/30 uppercase tracking-[0.3em] italic">No hay rutinas disponibles</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               ) : (
@@ -480,55 +561,50 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                         <p className="text-sm font-black italic uppercase text-white">{new Date(user.subscription.startDate).toLocaleDateString()}</p>
                       </div>
                       <div>
-                        <p className="text-[8px] font-black text-outline uppercase tracking-widest mb-1 opacity-50 italic">Vence el</p>
-                        <p className="text-sm font-black italic uppercase text-white">{new Date(user.subscription.endDate).toLocaleDateString()}</p>
-                      </div>
-                      <div>
                         <p className="text-[8px] font-black text-outline uppercase tracking-widest mb-1 opacity-50 italic">Días Restantes</p>
                         <p className={`text-sm font-black italic uppercase ${daysRemaining < 5 ? 'text-error' : 'text-secondary'}`}>{daysRemaining}</p>
-                      </div>
-                      <div className="flex items-center justify-end">
-                        <button 
-                          onClick={() => setShowHistory(!showHistory)}
-                          className="w-10 h-10 rounded-xl bg-surface-container-highest text-secondary hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-lg"
-                        >
-                          <span className="material-symbols-outlined text-lg">{showHistory ? 'visibility_off' : 'history'}</span>
-                        </button>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Sub History List */}
-                <AnimatePresence>
-                  {showHistory && user.subscriptionHistory && user.subscriptionHistory.length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 space-y-4"
-                    >
-                      <h6 className="text-[9px] font-black text-outline uppercase tracking-widest italic ml-1">Historial de Registros:</h6>
-                      <div className="space-y-3">
-                        {user.subscriptionHistory.slice().reverse().map((sub, i) => (
-                          <div key={i} className="flex items-center justify-between p-4 bg-surface-container-high rounded-2xl border border-outline-variant/5">
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-black italic uppercase text-white">{sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}</span>
-                              <span className="text-[8px] font-bold text-outline uppercase tracking-widest">{new Date(sub.startDate).toLocaleDateString()} al {new Date(sub.endDate).toLocaleDateString()}</span>
-                            </div>
-                            <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${sub.status === 'active' ? 'border-primary-container/20 text-primary-container bg-primary-container/5' : 'border-outline-variant/20 text-outline-variant bg-outline-variant/5'}`}>
-                              {sub.status === 'active' ? 'Finalizado' : sub.status === 'canceled' ? 'Cancelado' : 'Expirado'}
-                            </span>
+                {/* Sub History List (PERMANENTLY VISIBLE) */}
+                {user.subscriptionHistory && user.subscriptionHistory.length > 0 && (
+                  <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                       <span className="material-symbols-outlined text-secondary text-base">history_edu</span>
+                       <h6 className="text-[10px] font-black text-outline uppercase tracking-[0.2em] italic">Historial de Membresías</h6>
+                    </div>
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {user.subscriptionHistory.slice().reverse().map((sub, i) => (
+                        <div key={i} className="flex items-center justify-between p-4 bg-surface-container-high rounded-2xl border border-outline-variant/5 group hover:border-outline-variant/20 transition-all">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-black italic uppercase text-white">{sub.planId === '1month' ? 'Mensual' : sub.planId === '6months' ? 'Semestral' : 'Anual'}</span>
+                            <span className="text-[8px] font-bold text-outline uppercase tracking-widest">{new Date(sub.startDate).toLocaleDateString()} al {new Date(sub.endDate).toLocaleDateString()}</span>
                           </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                          <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${sub.status === 'active' ? 'border-primary-container/20 text-primary-container bg-primary-container/5' : 'border-outline-variant/20 text-outline-variant bg-outline-variant/5'}`}>
+                            {sub.status === 'active' ? 'Finalizado' : sub.status === 'canceled' ? 'Cancelado' : 'Expirado'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Assignments / Renewals */}
-              <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 flex flex-col gap-6">
+              <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 flex flex-col gap-6 relative overflow-hidden">
+                {subStatus === 'ACTIVO' && (
+                  <div className="absolute inset-0 z-20 bg-background/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                    <div className="w-16 h-16 bg-surface-container-highest rounded-full flex items-center justify-center mb-4 border border-secondary/20 shadow-2xl shadow-secondary/10">
+                      <span className="material-symbols-outlined text-secondary text-3xl">verified_user</span>
+                    </div>
+                    <h4 className="text-secondary text-xs font-black uppercase tracking-[0.3em] mb-2 italic">Membresía Vigente</h4>
+                    <p className="text-[9px] font-bold text-outline uppercase tracking-widest leading-relaxed max-w-[200px]">
+                      Para registrar un nuevo plan, primero debes <span className="text-white">vencer</span> o <span className="text-error">cancelar</span> la membresía actual.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <h5 className="text-[11px] font-black text-outline uppercase tracking-[0.4em] italic mb-2 leading-none">Gestión de Pago</h5>
                   <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest italic leading-none opacity-50">Renovaciones rápidas</p>
@@ -578,65 +654,135 @@ const UserProfileView: React.FC<UserProfileViewProps> = ({
                   </div>
                   
                   <div className="flex flex-col gap-3">
-                    {[
-                      { id: 'admin', label: 'Administrador Total', desc: 'Acceso a facturación y ajustes globales.' },
-                      { id: 'trainer', label: 'Staff / Entrenador', desc: 'Gestión de rutinas y alumnos.' },
-                      { id: 'trainee', label: 'Atleta / Cliente', desc: 'Acceso estándar a la aplicación.' }
-                    ].map(role => (
-                      <button
-                        key={role.id}
-                        onClick={() => handleRoleChange(role.id as any)}
-                        className={`p-5 rounded-3xl border-2 transition-all text-left flex items-center justify-between group ${
-                          user.role === role.id 
-                            ? 'bg-secondary/10 border-secondary text-white' 
-                            : 'bg-surface-container-high border-transparent text-outline hover:border-outline-variant/20'
-                        }`}
-                      >
-                        <div className="flex flex-col gap-1">
-                          <span className={`text-sm font-black uppercase italic ${user.role === role.id ? 'text-secondary' : 'text-outline group-hover:text-white'}`}>{role.label}</span>
-                          <span className="text-[8px] font-bold uppercase tracking-widest opacity-40 max-w-[200px]">{role.desc}</span>
-                        </div>
-                        {user.role === role.id && <span className="material-symbols-outlined text-secondary">verified</span>}
-                      </button>
-                    ))}
+                     ].map(role => (
+                       <button
+                         key={role.id}
+                         onClick={() => handleRoleChange(role.id as any)}
+                         className={`p-5 rounded-3xl border-2 transition-all text-left flex items-center justify-between group ${
+                           user.role === role.id 
+                             ? 'bg-secondary/10 border-secondary text-white' 
+                             : 'bg-surface-container-high border-transparent text-outline hover:border-outline-variant/20'
+                         }`}
+                       >
+                         <div className="flex flex-col gap-1">
+                           <span className={`text-sm font-black uppercase italic ${user.role === role.id ? 'text-secondary' : 'text-outline group-hover:text-white'}`}>{role.label}</span>
+                           <span className="text-[8px] font-bold uppercase tracking-widest opacity-40 max-w-[200px]">{role.desc}</span>
+                         </div>
+                         {user.role === role.id && <span className="material-symbols-outlined text-secondary">verified</span>}
+                       </button>
+                     ))}
+                   </div>
+
+                  {/* Activation Status Toggle */}
+                  <div className="pt-6 border-t border-outline-variant/10">
+                    <button
+                      onClick={async () => {
+                        const newStatus = user.isActive === false;
+                        const { toggleUserStatus } = await import('../services/db');
+                        await toggleUserStatus(user.uid, newStatus);
+                        onShowDialog({
+                          type: 'info',
+                          title: newStatus ? 'USUARIO HABILITADO' : 'USUARIO DESHABILITADO',
+                          message: `El acceso de ${user.displayName} al sistema ha sido ${newStatus ? 'reestablecido' : 'suspendido'} correctamente.`,
+                          confirmText: 'ENTENDIDO'
+                        });
+                      }}
+                      className={`w-full p-5 rounded-3xl border-2 transition-all flex items-center justify-between group ${
+                        user.isActive === false 
+                          ? 'bg-error/10 border-error text-error' 
+                          : 'bg-primary-container/10 border-primary-container text-primary-container'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-black uppercase italic">Estado de Cuenta</span>
+                        <span className="text-[8px] font-bold uppercase tracking-widest opacity-60">
+                          {user.isActive === false ? 'Acceso suspendido actualmente' : 'Acceso activo al sistema'}
+                        </span>
+                      </div>
+                      <span className="material-symbols-outlined shrink-0">
+                        {user.isActive === false ? 'block' : 'check_circle'}
+                      </span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Trainer Management Section (INSIDE THE ADMIN TAB) */}
                 <div className="bg-surface-container-low rounded-[32px] border border-outline-variant/10 p-8 space-y-6">
-                  <div>
-                    <h5 className="text-[11px] font-black text-primary-container uppercase tracking-[0.4em] italic mb-3">Vínculo de Coach</h5>
-                    <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest opacity-50 italic">Responsable técnico del alumno</p>
-                  </div>
-                  
-                  <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                    {allStaff
-                      .filter(staff => staff.uid !== user.uid)
-                      .map(staff => (
-                        <button 
-                          key={staff.uid}
-                          onClick={() => handleTrainerAssignment(staff)}
-                          className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${
-                            user.trainerId === staff.uid 
-                              ? 'bg-secondary/10 border-secondary' 
-                              : 'bg-surface-container-high border-outline-variant/5 hover:bg-surface-container-highest'
-                          }`}
-                        >
-                          <img 
-                            src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.displayName || 'Staff'}&background=CCFF00&color=121212`} 
-                            className="w-10 h-10 rounded-xl border border-outline-variant/10 shadow-lg object-cover" 
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-black uppercase italic truncate text-white leading-none mb-1 group-hover:text-secondary transition-colors">{staff.displayName || staff.email}</p>
-                            <p className="text-[8px] font-black text-outline uppercase tracking-widest opacity-40 leading-none">{staff.role}</p>
-                          </div>
-                          {user.trainerId === staff.uid && <span className="material-symbols-outlined text-secondary text-base">verified</span>}
-                        </button>
-                      ))}
-                    {allStaff.length === 0 && (
-                      <p className="text-[10px] text-outline/30 italic uppercase text-center py-10">Cargando Staff disponible...</p>
-                    )}
-                  </div>
+                  {user.role === 'trainer' ? (
+                    <>
+                      <div>
+                        <h5 className="text-[11px] font-black text-amber-400 uppercase tracking-[0.4em] italic mb-3 leading-none">Jefe Administrativo</h5>
+                        <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest opacity-50 italic">Supervisor responsable del entrenador</p>
+                      </div>
+                      
+                      <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {allStaff
+                          .filter(staff => staff.role === 'admin' && staff.uid !== user.uid)
+                          .map(admin => (
+                            <button 
+                              key={admin.uid}
+                              onClick={async () => {
+                                const { assignBossToStaff } = await import('../services/db');
+                                await assignBossToStaff(user.uid, admin.uid, admin.displayName || admin.email);
+                                onShowDialog({
+                                  type: 'success',
+                                  title: 'JERARQUÍA ACTUALIZADA',
+                                  message: `${admin.displayName} ha sido asignado como el jefe administrativo de ${user.displayName}.`,
+                                  confirmText: 'ENTENDIDO'
+                                });
+                              }}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${
+                                user.bossId === admin.uid 
+                                  ? 'bg-amber-400/10 border-amber-400' 
+                                  : 'bg-surface-container-high border-outline-variant/5 hover:bg-surface-container-highest'
+                              }`}
+                            >
+                              <img 
+                                src={admin.avatarUrl || `https://ui-avatars.com/api/?name=${admin.displayName || 'Admin'}&background=FF4444&color=FFFFFF`} 
+                                className="w-10 h-10 rounded-xl border border-outline-variant/10 shadow-lg object-cover" 
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-black uppercase italic truncate text-white leading-none mb-1 group-hover:text-amber-400 transition-colors">{admin.displayName || admin.email}</p>
+                                <p className="text-[8px] font-black text-outline uppercase tracking-widest opacity-40 leading-none">Administrador Maestro</p>
+                              </div>
+                              {user.bossId === admin.uid && <span className="material-symbols-outlined text-amber-400 text-base">security</span>}
+                            </button>
+                          ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <h5 className="text-[11px] font-black text-primary-container uppercase tracking-[0.4em] italic mb-3">Vínculo de Coach</h5>
+                        <p className="text-[9px] font-bold text-outline-variant uppercase tracking-widest opacity-50 italic">Responsable técnico del alumno</p>
+                      </div>
+                      
+                      <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {allStaff
+                          .filter(staff => staff.role === 'trainer')
+                          .map(staff => (
+                            <button 
+                              key={staff.uid}
+                              onClick={() => handleTrainerAssignment(staff)}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${
+                                user.trainerId === staff.uid 
+                                  ? 'bg-secondary/10 border-secondary' 
+                                  : 'bg-surface-container-high border-outline-variant/5 hover:bg-surface-container-highest'
+                              }`}
+                            >
+                              <img 
+                                src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.displayName || 'Staff'}&background=CCFF00&color=121212`} 
+                                className="w-10 h-10 rounded-xl border border-outline-variant/10 shadow-lg object-cover" 
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[11px] font-black uppercase italic truncate text-white leading-none mb-1 group-hover:text-secondary transition-colors">{staff.displayName || staff.email}</p>
+                                <p className="text-[8px] font-black text-outline uppercase tracking-widest opacity-40 leading-none">{staff.role}</p>
+                              </div>
+                              {user.trainerId === staff.uid && <span className="material-symbols-outlined text-secondary text-base">verified</span>}
+                            </button>
+                          ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 

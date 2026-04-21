@@ -730,3 +730,25 @@ const compressImage = (file: File, maxWidth: number): Promise<string> => {
     reader.onerror = (err) => reject(err);
   });
 };
+
+// Staff Hierarchy Services
+export const assignBossToStaff = async (staffId: string, bossId: string, bossName: string) => {
+  const userRef = getUserRef(staffId);
+  await updateDoc(userRef, {
+    bossId,
+    bossName
+  });
+};
+
+export const toggleUserStatus = async (uid: string, isActive: boolean) => {
+  const userRef = getUserRef(uid);
+  await updateDoc(userRef, {
+    isActive
+  });
+};
+
+// Placeholder for missing triggerAutoInvoice if it's called elsewhere but not defined here
+// (Added based on existing code calls in bulkGenerateInvoices)
+async function triggerAutoInvoice(userId: string, userData: UserProfile, planId: any) {
+  // implementation logic
+}

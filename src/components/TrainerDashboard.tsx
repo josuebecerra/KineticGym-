@@ -809,15 +809,9 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                       <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">Estado</span>
                     </th>
                     <th className="px-6 py-5 w-[140px] hidden md:table-cell">
-                      <button 
-                        onClick={() => handleSort('trainerName')}
-                        className="flex items-center gap-1.5 group outline-none"
-                      >
-                        <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] group-hover:text-secondary transition-colors whitespace-nowrap">Coach</span>
-                        <span className={`material-symbols-outlined text-[14px] transition-all ${sortConfig.field === 'trainerName' ? 'text-secondary opacity-100' : 'text-outline opacity-0 group-hover:opacity-40'}`}>
-                          {sortConfig.field === 'trainerName' && sortConfig.direction === 'desc' ? 'arrow_downward' : 'arrow_upward'}
-                        </span>
-                      </button>
+                      <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">
+                        {activeTab === 'trainer' ? 'Jefe / Supervisor' : 'Coach'}
+                      </span>
                     </th>
                     <th className="px-6 py-5 w-[100px] text-right">
                       <span className="text-[9px] font-black text-outline uppercase tracking-[0.2em] whitespace-nowrap">Acciones</span>
@@ -851,9 +845,23 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                           </div>
                         </td>
                         <td className="px-6 py-4 w-[140px]">
-                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${getRoleColor(t.role || 'trainee')}`}>
-                            {t.role || 'trainee'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                             <div 
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (currentRole !== 'admin') return;
+                                  const newStatus = t.isActive === false;
+                                  const { toggleUserStatus } = await import('../services/db');
+                                  await toggleUserStatus(t.uid, newStatus);
+                                  setTrainees(prev => prev.map(u => u.uid === t.uid ? { ...u, isActive: newStatus } : u));
+                                }}
+                                className={`w-3 h-3 rounded-full border-2 border-black shadow-sm cursor-pointer transition-colors ${t.isActive === false ? 'bg-error animate-pulse' : 'bg-primary-container'}`} 
+                                title={t.isActive === false ? 'Habilitar Usuario' : 'Deshabilitar Usuario'}
+                             />
+                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-colors ${getRoleColor(t.role || 'trainee')}`}>
+                               {t.role || 'trainee'}
+                             </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 w-[160px]">
                           <div className="flex flex-col gap-1">
@@ -873,8 +881,13 @@ export const TrainerDashboard: React.FC<TrainerDashboardProps> = ({ onBack, curr
                               <span className="material-symbols-outlined text-sm">{t.trainerName ? 'sports' : 'person_off'}</span>
                               <span className="text-[9px] font-black uppercase tracking-wider">{t.trainerName || 'Sin asignar'}</span>
                             </div>
+                          ) : t.role === 'trainer' ? (
+                            <div className={`flex items-center gap-2 ${t.bossName ? 'text-amber-400' : 'text-outline/40 italic'}`}>
+                              <span className="material-symbols-outlined text-sm">{t.bossName ? 'security' : 'sentiment_dissatisfied'}</span>
+                              <span className="text-[9px] font-black uppercase tracking-wider">{t.bossName || 'Sin Jefe'}</span>
+                            </div>
                           ) : (
-                            <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">---</span>
+                            <span className="text-[9px] font-black text-outline/20 uppercase italic tracking-widest">Master Admin</span>
                           )}
                         </td>
                         <td className="px-6 py-4 w-[100px] text-right">

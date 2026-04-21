@@ -118,6 +118,9 @@ export interface UserProfile {
   };
   taxData?: TaxData;
   invoices?: Invoice[];
+  isActive?: boolean;
+  bossId?: string;
+  bossName?: string;
 }
 
 export interface Routine {
